@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Patient, PatientStatus } from './entity/patient.entity';
+import { UserRole } from '../auth/entity/user.entity';
 
 @Injectable()
 export class PatientsService {
@@ -20,13 +21,24 @@ export class PatientsService {
     return this.patientsRepository.save(patient);
   }
 
-  async findAll(): Promise<Patient[]> {
-    return this.patientsRepository.find({
-      relations: ['assigned_doctor', 'sessions', 'payments'],
-    });
+  async findAll(userRole: UserRole): Promise<Patient[]> {
+    if (userRole === UserRole.RECEPTIONIST) {
+      // Receptionist sirf active patients dekh sakta hai
+      return this.patientsRepository.find({
+        where: { status: PatientStatus.ACTIVE },
+        relations: ['assigned_doctor', 'sessions', 'payments'],
+      });
+    } else if (userRole === UserRole.OWNER) {
+      // Owner sabhi patients dekh sakta hai
+      return this.patientsRepository.find({
+        relations: ['assigned_doctor', 'sessions', 'payments'],
+      });
+    }
+    
+    throw new ForbiddenException('Access denied');
   }
 
-  async findOne(id: number): Promise<Patient> {
+  async findOne(id: number, userRole: UserRole): Promise<Patient> {
     const patient = await this.patientsRepository.findOne({
       where: { patient_id: id },
       relations: ['assigned_doctor', 'sessions', 'sessions.doctor', 'payments'],
@@ -36,23 +48,33 @@ export class PatientsService {
       throw new NotFoundException(`Patient with ID ${id} not found`);
     }
 
+    // Agar user receptionist hai aur patient active nahi hai
+    if (userRole === UserRole.RECEPTIONIST && patient.status !== PatientStatus.ACTIVE) {
+      throw new ForbiddenException('Access denied to non-active patients');
+    }
+
     return patient;
   }
 
-  async update(id: number, updateData: Partial<Patient>): Promise<Patient> {
-    const patient = await this.findOne(id);
-    
-    // Recalculate per_session_amount if total_sessions or total_amount changed
-    if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
-        (updateData.total_sessions !== patient.total_sessions || updateData.total_amount !== patient.total_amount)) {
-      const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
-      const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
-      updateData.per_session_amount = newTotalAmount / newTotalSessions;
-    }
-
-    await this.patientsRepository.update(id, updateData);
-    return this.findOne(id);
+  async update(id: number, updateData: Partial<Patient>, userRole: UserRole): Promise<Patient> {
+  // Pehle patient access check karein
+  const patient = await this.findOne(id, userRole);
+  
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${id} not found`);
   }
+
+  // Recalculate per_session_amount if total_sessions or total_amount changed
+  if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
+      (updateData.total_sessions !== patient.total_sessions || updateData.total_amount !== patient.total_amount)) {
+    const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
+    const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
+    updateData.per_session_amount = newTotalAmount / newTotalSessions;
+  }
+
+  await this.patientsRepository.update(id, updateData);
+  return this.findOne(id, userRole);
+}
 
   async remove(id: number): Promise<void> {
     const result = await this.patientsRepository.delete(id);
