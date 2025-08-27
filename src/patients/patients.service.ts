@@ -38,32 +38,27 @@ export class PatientsService {
     throw new ForbiddenException('Access denied');
   }
 
-  async findOne(id: number, userRole: UserRole): Promise<Patient> {
-    const patient = await this.patientsRepository.findOne({
-      where: { patient_id: id },
-      relations: ['assigned_doctor', 'sessions', 'sessions.doctor', 'payments'],
-    });
+ async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
+  const patient = await this.patientsRepository.findOne({
+    where: { patient_id: id },
+    relations: ['assigned_doctor', 'sessions', 'sessions.doctor', 'payments'],
+  });
 
-    if (!patient) {
-      throw new NotFoundException(`Patient with ID ${id} not found`);
-    }
-
-    // Agar user receptionist hai aur patient active nahi hai
-    if (userRole === UserRole.RECEPTIONIST && patient.status !== PatientStatus.ACTIVE) {
-      throw new ForbiddenException('Access denied to non-active patients');
-    }
-
-    return patient;
-  }
-
-  async update(id: number, updateData: Partial<Patient>, userRole: UserRole): Promise<Patient> {
-  // Pehle patient access check karein
-  const patient = await this.findOne(id, userRole);
-  
   if (!patient) {
     throw new NotFoundException(`Patient with ID ${id} not found`);
   }
 
+  // Agar user role provided hai aur user receptionist hai aur patient active nahi hai
+  if (userRole !== null && userRole === UserRole.RECEPTIONIST && patient.status !== PatientStatus.ACTIVE) {
+    throw new ForbiddenException('Access denied to non-active patients');
+  }
+
+  return patient;
+}
+async update(id: number, updateData: Partial<Patient>, userRole: UserRole | null = null): Promise<Patient> {
+  // Pehle patient access check karein
+  const patient = await this.findOne(id, userRole);
+  
   // Recalculate per_session_amount if total_sessions or total_amount changed
   if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
       (updateData.total_sessions !== patient.total_sessions || updateData.total_amount !== patient.total_amount)) {
@@ -75,7 +70,6 @@ export class PatientsService {
   await this.patientsRepository.update(id, updateData);
   return this.findOne(id, userRole);
 }
-
   async remove(id: number): Promise<void> {
     const result = await this.patientsRepository.delete(id);
     if (result.affected === 0) {

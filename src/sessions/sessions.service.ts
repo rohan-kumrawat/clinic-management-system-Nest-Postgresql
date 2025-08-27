@@ -5,6 +5,7 @@ import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
 
+
 @Injectable()
 export class SessionsService {
   constructor(
@@ -21,7 +22,7 @@ export class SessionsService {
     remarks?: string;
   }): Promise<Session> {
     // Verify patient exists
-    await this.patientsService.findOne(sessionData.patient.patient_id);
+    await this.patientsService.findOne(sessionData.patient.patient_id, null);
     
     // If doctor is provided, verify it exists
     if (sessionData.doctor) {

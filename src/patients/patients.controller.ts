@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from 
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard'; // Fixed typo: gaurd -> guard
+import { RolesGuard } from '../auth/roles.gaurd'; // Fixed typo: gaurd -> guard
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
 import { UseInterceptors, UploadedFile } from '@nestjs/common';
@@ -29,18 +29,18 @@ export class PatientsController {
   }
 
   @Post(':id/upload')
-  @UseInterceptors(FileInterceptor('file'))
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async uploadFile(
-    @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
-    @Req() request: AuthenticatedRequest
-  ) {
-    const userRole = request.user.role;
-    const patient = await this.patientsService.findOne(+id, userRole);
-    patient.attachment = file.filename;
-    await this.patientsService.update(+id, patient, userRole);
-  }
+@UseInterceptors(FileInterceptor('file'))
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async uploadFile(
+  @Param('id') id: string,
+  @UploadedFile() file: Express.Multer.File,
+  @Req() request: AuthenticatedRequest
+) {
+  const userRole = request.user.role;
+  const patient = await this.patientsService.findOne(+id, userRole);
+  patient.attachment = file.filename;
+  await this.patientsService.update(+id, patient, userRole);
+}
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
