@@ -29,12 +29,12 @@ export class AuthService {
     };
   }
 
-  async register(userData: Partial<User>): Promise<User> {
-    const hashedPassword = bcrypt.hashSync(userData.password || '', 10);
-    const user = this.userRepository.create({
-      ...userData,
-      password: hashedPassword,
-    });
-    return this.userRepository.save(user);
-  }
+async register(userData: Partial<User>): Promise<User> {
+  const hashedPassword = bcrypt.hashSync(userData.password || '', 10);
+  const user = this.userRepository.create({
+    ...userData,
+    password: hashedPassword,
+  });
+  return this.userRepository.save(user);
+}
 }

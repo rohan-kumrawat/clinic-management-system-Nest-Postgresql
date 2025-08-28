@@ -14,33 +14,34 @@ export class PaymentsService {
     private sessionsService: SessionsService,
   ) {}
 
-  async create(paymentData: {
-    patient: { patient_id: number };
-    session?: { session_id: number };
-    amount_paid: number;
-    payment_mode?: PaymentMode;
-    remarks?: string;
-    payment_date: Date;
-  }): Promise<Payment> {
-    // Verify patient exists
-    const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
-    
-    // If session is provided, verify it exists
-    if (paymentData.session) {
-      await this.sessionsService.findOne(paymentData.session.session_id);
-    }
-
-    // Calculate remaining amount
-    const totalPaid = await this.getTotalPaid(patient.patient_id);
-    const remainingAmount = patient.total_amount - (totalPaid + paymentData.amount_paid);
-
-    const payment = this.paymentsRepository.create({
-      ...paymentData,
-      remaining_amount: remainingAmount,
-    });
-    
-    return this.paymentsRepository.save(payment);
+async create(paymentData: {
+  patient: { patient_id: number };
+  session?: { session_id: number };
+  created_by: { id: number };
+  amount_paid: number;
+  payment_mode?: PaymentMode;
+  remarks?: string;
+  payment_date: Date;
+}): Promise<Payment> {
+  // Verify patient exists
+  const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
+  
+  // If session is provided, verify it exists
+  if (paymentData.session) {
+    await this.sessionsService.findOne(paymentData.session.session_id);
   }
+
+  // Calculate remaining amount
+  const totalPaid = await this.getTotalPaid(patient.patient_id);
+  const remainingAmount = patient.total_amount - (totalPaid + paymentData.amount_paid);
+
+  const payment = this.paymentsRepository.create({
+    ...paymentData,
+    remaining_amount: remainingAmount,
+  });
+  
+  return this.paymentsRepository.save(payment);
+}
 
   async findAll(): Promise<Payment[]> {
     return this.paymentsRepository.find({

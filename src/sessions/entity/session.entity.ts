@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Payment } from '../../payments/entity/payment.entity';
+import { User } from '../../auth/entity/user.entity';
 
 @Entity('sessions')
 export class Session {
@@ -14,6 +15,10 @@ export class Session {
 
   @ManyToOne(() => Doctor, doctor => doctor.sessions)
   doctor: Doctor;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  created_by: User;
 
   @Column({ type: 'date' })
   session_date: Date;

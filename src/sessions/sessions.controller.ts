@@ -1,10 +1,19 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { Session } from './entity/session.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: number;
+    email: string;
+    role: UserRole;
+  };
+}
 
 @Controller('sessions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -13,28 +22,28 @@ export class SessionsController {
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  create(@Body() sessionData: {
-    patient: { patient_id: number };
-    doctor?: { doctor_id: number };
-    session_date: Date;
-    remarks?: string;
-  }): Promise<Session> {
-    return this.sessionsService.create(sessionData);
+  create(
+    @Body() sessionData: {
+      patient: { patient_id: number };
+      doctor?: { doctor_id: number };
+      session_date: Date;
+      remarks?: string;
+    },
+    @Req() request: AuthenticatedRequest
+  ): Promise<Session> {
+    // Add created_by from the authenticated user
+    const sessionDataWithCreatedBy = {
+      ...sessionData,
+      created_by: { id: request.user.userId }
+    };
+    
+    return this.sessionsService.create(sessionDataWithCreatedBy);
   }
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   findAll(): Promise<Session[]> {
     return this.sessionsService.findAll();
-  }
-
-  @Get('range')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findByDateRange(
-    @Query('start') startDate: string,
-    @Query('end') endDate: string,
-  ): Promise<Session[]> {
-    return this.sessionsService.findByDateRange(new Date(startDate), new Date(endDate));
   }
 
   @Get(':id')

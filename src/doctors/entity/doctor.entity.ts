@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsEmail } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
 
@@ -17,6 +17,16 @@ export class Doctor {
 
   @Column()
   mobile: string;
+
+  @Column({ nullable: true })
+  experience: string;
+
+  @Column({ nullable: true })
+  @IsEmail()
+  email: string;
+
+  @Column({ nullable: true })
+  qualification: string;
 
   @Column({ default: true })
   status: boolean;

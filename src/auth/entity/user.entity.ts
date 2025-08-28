@@ -19,6 +19,14 @@ export class User {
   @IsNotEmpty()
   password: string;
 
+  @Column()
+  @IsNotEmpty()
+  name: string;
+
+  @Column()
+  @IsNotEmpty()
+  mobile: string;
+
   @Column({
     type: 'enum',
     enum: UserRole,

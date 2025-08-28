@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, On
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
+import { User } from '../../auth/entity/user.entity';
 
 export enum PaymentMode {
   CASH = 'cash',
@@ -20,6 +21,10 @@ export class Payment {
   @OneToOne(() => Session, { nullable: true })
   @JoinColumn()
   session: Session;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  created_by: User;
 
   @Column('decimal', { precision: 10, scale: 2 })
   amount_paid: number;

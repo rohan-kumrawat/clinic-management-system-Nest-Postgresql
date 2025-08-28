@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
@@ -15,23 +15,24 @@ export class SessionsService {
     private doctorsService: DoctorsService,
   ) {}
 
-  async create(sessionData: {
-    patient: { patient_id: number };
-    doctor?: { doctor_id: number };
-    session_date: Date;
-    remarks?: string;
-  }): Promise<Session> {
-    // Verify patient exists
-    await this.patientsService.findOne(sessionData.patient.patient_id, null);
-    
-    // If doctor is provided, verify it exists
-    if (sessionData.doctor) {
-      await this.doctorsService.findOne(sessionData.doctor.doctor_id);
-    }
-
-    const session = this.sessionsRepository.create(sessionData);
-    return this.sessionsRepository.save(session);
+async create(sessionData: {
+  patient: { patient_id: number };
+  doctor?: { doctor_id: number };
+  created_by: { id: number };
+  session_date: Date;
+  remarks?: string;
+}): Promise<Session> {
+  // Verify patient exists
+  await this.patientsService.findOne(sessionData.patient.patient_id);
+  
+  // If doctor is provided, verify it exists
+  if (sessionData.doctor) {
+    await this.doctorsService.findOne(sessionData.doctor.doctor_id);
   }
+
+  const session = this.sessionsRepository.create(sessionData);
+  return this.sessionsRepository.save(session);
+}
 
   async findAll(): Promise<Session[]> {
     return this.sessionsRepository.find({
@@ -52,14 +53,14 @@ export class SessionsService {
     return session;
   }
 
-  async findByDateRange(startDate: Date, endDate: Date): Promise<Session[]> {
-    return this.sessionsRepository.find({
-      where: {
-        session_date: Between(startDate, endDate),
-      },
-      relations: ['patient', 'doctor', 'payment'],
-    });
-  }
+  // async findByDateRange(startDate: Date, endDate: Date): Promise<Session[]> {
+  //   return this.sessionsRepository.find({
+  //     where: {
+  //       session_date: Between(startDate, endDate),
+  //     },
+  //     relations: ['patient', 'doctor', 'payment'],
+  //   });
+  // }
 
   async update(id: number, updateData: Partial<Session>): Promise<Session> {
     await this.sessionsRepository.update(id, updateData);
