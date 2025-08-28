@@ -23,4 +23,6 @@ export class AuthController {
       throw new HttpException('Registration failed', HttpStatus.BAD_REQUEST);
     }
   }
+
+  
 }
