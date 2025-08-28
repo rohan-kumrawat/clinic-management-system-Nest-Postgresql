@@ -5,7 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
-import { databaseConfig } from './config/databse.config';
+import { databaseConfig } from './config/database.config'; // Corrected import
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';
 import { DoctorsModule } from './doctors/doctors.module';
@@ -15,7 +15,7 @@ import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(databaseConfig),
+    TypeOrmModule.forRoot(databaseConfig), // Use databaseConfig directly
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',
