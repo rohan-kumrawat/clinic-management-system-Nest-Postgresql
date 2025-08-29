@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+  OneToOne,
+  JoinColumn,
+} from 'typeorm';
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -15,7 +23,7 @@ export class Payment {
   @PrimaryGeneratedColumn()
   payment_id: number;
 
-  @ManyToOne(() => Patient, patient => patient.payments)
+  @ManyToOne(() => Patient, (patient) => patient.payments)
   patient: Patient;
 
   @OneToOne(() => Session, { nullable: true })

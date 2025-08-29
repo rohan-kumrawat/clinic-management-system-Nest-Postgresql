@@ -10,11 +10,11 @@ export class FileUploadService {
       storage: diskStorage({
         destination: (req, file, cb) => {
           const uploadPath = `./uploads/${destination}`;
-          
+
           if (!existsSync(uploadPath)) {
             mkdirSync(uploadPath, { recursive: true });
           }
-          
+
           cb(null, uploadPath);
         },
         filename: (req, file, cb) => {

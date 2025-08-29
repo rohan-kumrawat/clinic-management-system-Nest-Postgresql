@@ -7,11 +7,7 @@ import { PatientsModule } from '../patients/patients.module';
 import { DoctorsModule } from '../doctors/doctors.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Session]),
-    PatientsModule,
-    DoctorsModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Session]), PatientsModule, DoctorsModule],
   providers: [SessionsService],
   controllers: [SessionsController],
   exports: [SessionsService],

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { Session } from './entity/session.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -23,20 +33,21 @@ export class SessionsController {
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   create(
-    @Body() sessionData: {
+    @Body()
+    sessionData: {
       patient: { patient_id: number };
       doctor?: { doctor_id: number };
       session_date: Date;
       remarks?: string;
     },
-    @Req() request: AuthenticatedRequest
+    @Req() request: AuthenticatedRequest,
   ): Promise<Session> {
     // Add created_by from the authenticated user
     const sessionDataWithCreatedBy = {
       ...sessionData,
-      created_by: { id: request.user.userId }
+      created_by: { id: request.user.userId },
     };
-    
+
     return this.sessionsService.create(sessionDataWithCreatedBy);
   }
 
@@ -54,7 +65,10 @@ export class SessionsController {
 
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(@Param('id') id: string, @Body() updateData: Partial<Session>): Promise<Session> {
+  update(
+    @Param('id') id: string,
+    @Body() updateData: Partial<Session>,
+  ): Promise<Session> {
     return this.sessionsService.update(+id, updateData);
   }
 

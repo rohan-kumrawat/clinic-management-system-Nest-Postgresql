@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentMode } from './entity/payment.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -23,7 +34,8 @@ export class PaymentsController {
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   create(
-    @Body() paymentData: {
+    @Body()
+    paymentData: {
       patient: { patient_id: number };
       session?: { session_id: number };
       amount_paid: number;
@@ -31,14 +43,14 @@ export class PaymentsController {
       remarks?: string;
       payment_date: Date;
     },
-    @Req() request: AuthenticatedRequest
+    @Req() request: AuthenticatedRequest,
   ): Promise<Payment> {
     // Add created_by from the authenticated user
     const paymentDataWithCreatedBy = {
       ...paymentData,
-      created_by: { id: request.user.userId }
+      created_by: { id: request.user.userId },
     };
-    
+
     return this.paymentsService.create(paymentDataWithCreatedBy);
   }
 
@@ -54,7 +66,10 @@ export class PaymentsController {
     @Query('start') startDate: string,
     @Query('end') endDate: string,
   ): Promise<Payment[]> {
-    return this.paymentsService.findByDateRange(new Date(startDate), new Date(endDate));
+    return this.paymentsService.findByDateRange(
+      new Date(startDate),
+      new Date(endDate),
+    );
   }
 
   @Get('revenue')
@@ -63,7 +78,10 @@ export class PaymentsController {
     @Query('start') startDate: string,
     @Query('end') endDate: string,
   ) {
-    return this.paymentsService.getRevenueStats(new Date(startDate), new Date(endDate));
+    return this.paymentsService.getRevenueStats(
+      new Date(startDate),
+      new Date(endDate),
+    );
   }
 
   @Get(':id')
@@ -74,7 +92,10 @@ export class PaymentsController {
 
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(@Param('id') id: string, @Body() updateData: Partial<Payment>): Promise<Payment> {
+  update(
+    @Param('id') id: string,
+    @Body() updateData: Partial<Payment>,
+  ): Promise<Payment> {
     return this.paymentsService.update(+id, updateData);
   }
 

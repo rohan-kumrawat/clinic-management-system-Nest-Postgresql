@@ -11,9 +11,9 @@ export class DoctorsService {
   ) {}
 
   async create(doctorData: Partial<Doctor>): Promise<Doctor> {
-  const doctor = this.doctorsRepository.create(doctorData);
-  return this.doctorsRepository.save(doctor);
-}
+    const doctor = this.doctorsRepository.create(doctorData);
+    return this.doctorsRepository.save(doctor);
+  }
 
   async findAll(): Promise<Doctor[]> {
     return this.doctorsRepository.find({

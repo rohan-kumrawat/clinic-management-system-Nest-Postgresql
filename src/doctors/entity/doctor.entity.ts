@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { IsNotEmpty, IsEmail } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -37,9 +44,9 @@ export class Doctor {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @OneToMany(() => Patient, patient => patient.assigned_doctor)
+  @OneToMany(() => Patient, (patient) => patient.assigned_doctor)
   patients: Patient[];
 
-  @OneToMany(() => Session, session => session.doctor)
+  @OneToMany(() => Session, (session) => session.doctor)
   sessions: Session[];
 }

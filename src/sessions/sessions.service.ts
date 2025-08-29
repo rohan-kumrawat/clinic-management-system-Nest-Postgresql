@@ -5,7 +5,6 @@ import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
 
-
 @Injectable()
 export class SessionsService {
   constructor(
@@ -15,24 +14,24 @@ export class SessionsService {
     private doctorsService: DoctorsService,
   ) {}
 
-async create(sessionData: {
-  patient: { patient_id: number };
-  doctor?: { doctor_id: number };
-  created_by: { id: number };
-  session_date: Date;
-  remarks?: string;
-}): Promise<Session> {
-  // Verify patient exists
-  await this.patientsService.findOne(sessionData.patient.patient_id);
-  
-  // If doctor is provided, verify it exists
-  if (sessionData.doctor) {
-    await this.doctorsService.findOne(sessionData.doctor.doctor_id);
-  }
+  async create(sessionData: {
+    patient: { patient_id: number };
+    doctor?: { doctor_id: number };
+    created_by: { id: number };
+    session_date: Date;
+    remarks?: string;
+  }): Promise<Session> {
+    // Verify patient exists
+    await this.patientsService.findOne(sessionData.patient.patient_id);
 
-  const session = this.sessionsRepository.create(sessionData);
-  return this.sessionsRepository.save(session);
-}
+    // If doctor is provided, verify it exists
+    if (sessionData.doctor) {
+      await this.doctorsService.findOne(sessionData.doctor.doctor_id);
+    }
+
+    const session = this.sessionsRepository.create(sessionData);
+    return this.sessionsRepository.save(session);
+  }
 
   async findAll(): Promise<Session[]> {
     return this.sessionsRepository.find({

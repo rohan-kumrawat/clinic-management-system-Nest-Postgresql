@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -58,7 +66,7 @@ export class Patient {
   @Column({ nullable: true })
   attachment: string;
 
-  @ManyToOne(() => Doctor, doctor => doctor.patients)
+  @ManyToOne(() => Doctor, (doctor) => doctor.patients)
   assigned_doctor: Doctor;
 
   @Column({
@@ -75,9 +83,9 @@ export class Patient {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @OneToMany(() => Session, session => session.patient)
+  @OneToMany(() => Session, (session) => session.patient)
   sessions: Session[];
 
-  @OneToMany(() => Payment, payment => payment.patient)
+  @OneToMany(() => Payment, (payment) => payment.patient)
   payments: Payment[];
 }

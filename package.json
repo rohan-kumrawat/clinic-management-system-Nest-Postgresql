@@ -14,7 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "start:local": "DB_HOST=localhost DB_PORT=5432 DB_USERNAME=postgres DB_PASSWORD=password DB_NAME=clinic_management npm run start:dev",
-    "typeorm":"ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "typeorm:generate-migration": "npm run typeorm -- migration:generate -n",
     "typeorm:run-migrations": "npm run typeorm -- migration:run",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

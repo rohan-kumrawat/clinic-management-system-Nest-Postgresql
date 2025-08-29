@@ -12,8 +12,10 @@ export class SeedService {
   ) {}
 
   async seedAdmin() {
-    const adminExists = await this.userRepository.findOne({ where: { email: 'admin@clinic.com' } });
-    
+    const adminExists = await this.userRepository.findOne({
+      where: { email: 'admin@clinic.com' },
+    });
+
     if (!adminExists) {
       const hashedPassword = bcrypt.hashSync('admin123', 10);
       const admin = this.userRepository.create({
@@ -21,7 +23,7 @@ export class SeedService {
         password: hashedPassword,
         role: UserRole.OWNER,
       });
-      
+
       await this.userRepository.save(admin);
       console.log('Admin user created');
     }

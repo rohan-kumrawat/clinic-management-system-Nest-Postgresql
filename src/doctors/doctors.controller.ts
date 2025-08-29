@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
 import { Doctor } from './entity/doctor.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,7 +40,10 @@ export class DoctorsController {
 
   @Put(':id')
   @Roles(UserRole.OWNER)
-  update(@Param('id') id: string, @Body() updateData: Partial<Doctor>): Promise<Doctor> {
+  update(
+    @Param('id') id: string,
+    @Body() updateData: Partial<Doctor>,
+  ): Promise<Doctor> {
     return this.doctorsService.update(+id, updateData);
   }
 

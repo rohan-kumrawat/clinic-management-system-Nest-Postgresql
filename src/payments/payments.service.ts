@@ -14,34 +14,37 @@ export class PaymentsService {
     private sessionsService: SessionsService,
   ) {}
 
-async create(paymentData: {
-  patient: { patient_id: number };
-  session?: { session_id: number };
-  created_by: { id: number };
-  amount_paid: number;
-  payment_mode?: PaymentMode;
-  remarks?: string;
-  payment_date: Date;
-}): Promise<Payment> {
-  // Verify patient exists
-  const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
-  
-  // If session is provided, verify it exists
-  if (paymentData.session) {
-    await this.sessionsService.findOne(paymentData.session.session_id);
+  async create(paymentData: {
+    patient: { patient_id: number };
+    session?: { session_id: number };
+    created_by: { id: number };
+    amount_paid: number;
+    payment_mode?: PaymentMode;
+    remarks?: string;
+    payment_date: Date;
+  }): Promise<Payment> {
+    // Verify patient exists
+    const patient = await this.patientsService.findOne(
+      paymentData.patient.patient_id,
+    );
+
+    // If session is provided, verify it exists
+    if (paymentData.session) {
+      await this.sessionsService.findOne(paymentData.session.session_id);
+    }
+
+    // Calculate remaining amount
+    const totalPaid = await this.getTotalPaid(patient.patient_id);
+    const remainingAmount =
+      patient.total_amount - (totalPaid + paymentData.amount_paid);
+
+    const payment = this.paymentsRepository.create({
+      ...paymentData,
+      remaining_amount: remainingAmount,
+    });
+
+    return this.paymentsRepository.save(payment);
   }
-
-  // Calculate remaining amount
-  const totalPaid = await this.getTotalPaid(patient.patient_id);
-  const remainingAmount = patient.total_amount - (totalPaid + paymentData.amount_paid);
-
-  const payment = this.paymentsRepository.create({
-    ...paymentData,
-    remaining_amount: remainingAmount,
-  });
-  
-  return this.paymentsRepository.save(payment);
-}
 
   async findAll(): Promise<Payment[]> {
     return this.paymentsRepository.find({
@@ -75,34 +78,45 @@ async create(paymentData: {
     const payments = await this.paymentsRepository.find({
       where: { patient: { patient_id: patientId } },
     });
-    
+
     return payments.reduce((total, payment) => total + payment.amount_paid, 0);
   }
 
-  async getRevenueStats(startDate: Date, endDate: Date): Promise<{
+  async getRevenueStats(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{
     totalRevenue: number;
     revenueByMode: Record<PaymentMode, number>;
     dailyRevenue: { date: string; amount: number }[];
   }> {
     const payments = await this.findByDateRange(startDate, endDate);
-    
-    const totalRevenue = payments.reduce((total, payment) => total + payment.amount_paid, 0);
-    
+
+    const totalRevenue = payments.reduce(
+      (total, payment) => total + payment.amount_paid,
+      0,
+    );
+
     const revenueByMode = {} as Record<PaymentMode, number>;
-    payments.forEach(payment => {
+    payments.forEach((payment) => {
       const mode = payment.payment_mode || PaymentMode.CASH;
       revenueByMode[mode] = (revenueByMode[mode] || 0) + payment.amount_paid;
     });
-    
+
     // Group by day
     const dailyRevenueMap = new Map<string, number>();
-    payments.forEach(payment => {
+    payments.forEach((payment) => {
       const dateStr = payment.payment_date.toISOString().split('T')[0];
-      dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + payment.amount_paid);
+      dailyRevenueMap.set(
+        dateStr,
+        (dailyRevenueMap.get(dateStr) || 0) + payment.amount_paid,
+      );
     });
-    
-    const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(([date, amount]) => ({ date, amount }));
-    
+
+    const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(
+      ([date, amount]) => ({ date, amount }),
+    );
+
     return { totalRevenue, revenueByMode, dailyRevenue };
   }
 

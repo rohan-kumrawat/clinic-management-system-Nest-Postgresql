@@ -28,6 +28,6 @@ const productionConfig: TypeOrmModuleOptions = {
 };
 
 // Environment detect karke configuration choose karein
-export const databaseConfig = process.env.DATABASE_URL 
-  ? productionConfig 
+export const databaseConfig = process.env.DATABASE_URL
+  ? productionConfig
   : localConfig;

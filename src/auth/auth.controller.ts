@@ -1,4 +1,10 @@
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { User } from './entity/user.entity';
 
@@ -8,7 +14,10 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() loginData: { email: string; password: string }) {
-    const user = await this.authService.validateUser(loginData.email, loginData.password);
+    const user = await this.authService.validateUser(
+      loginData.email,
+      loginData.password,
+    );
     if (!user) {
       throw new HttpException('Invalid credentials', HttpStatus.UNAUTHORIZED);
     }
@@ -23,6 +32,4 @@ export class AuthController {
       throw new HttpException('Registration failed', HttpStatus.BAD_REQUEST);
     }
   }
-
-  
 }

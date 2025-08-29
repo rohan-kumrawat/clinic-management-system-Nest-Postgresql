@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,18 +39,18 @@ export class PatientsController {
   }
 
   @Post(':id/upload')
-@UseInterceptors(FileInterceptor('file'))
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async uploadFile(
-  @Param('id') id: string,
-  @UploadedFile() file: Express.Multer.File,
-  @Req() request: AuthenticatedRequest
-) {
-  const userRole = request.user.role;
-  const patient = await this.patientsService.findOne(+id, userRole);
-  patient.attachment = file.filename;
-  await this.patientsService.update(+id, patient, userRole);
-}
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async uploadFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const userRole = request.user.role;
+    const patient = await this.patientsService.findOne(+id, userRole);
+    patient.attachment = file.filename;
+    await this.patientsService.update(+id, patient, userRole);
+  }
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -57,7 +67,10 @@ async uploadFile(
 
   @Get(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest): Promise<Patient> {
+  findOne(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<Patient> {
     const userRole = request.user.role;
     return this.patientsService.findOne(+id, userRole);
   }
@@ -65,9 +78,9 @@ async uploadFile(
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   update(
-    @Param('id') id: string, 
+    @Param('id') id: string,
     @Body() updateData: Partial<Patient>,
-    @Req() request: AuthenticatedRequest
+    @Req() request: AuthenticatedRequest,
   ): Promise<Patient> {
     const userRole = request.user.role;
     return this.patientsService.update(+id, updateData, userRole);
