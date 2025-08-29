@@ -1,6 +1,11 @@
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { User } from './entity/user.entity';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { Roles } from './roles.decorator';
+import { RolesGuard } from './roles.gaurd';
+import { UserRole } from './entity/user.entity';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -24,5 +29,10 @@ export class AuthController {
     }
   }
 
-  
+   @Post('users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER) // Only owner can create users
+  async createUser(@Body() createUserDto: CreateUserDto) {
+    return this.authService.createUser(createUserDto);
+  }
 }
