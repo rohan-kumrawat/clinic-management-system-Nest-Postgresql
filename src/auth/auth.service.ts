@@ -1,4 +1,4 @@
-import {ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {ConflictException, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -47,6 +47,9 @@ async register(userData: Partial<User>): Promise<User> {
   return this.userRepository.save(user);
 }
 
+// Create receptionist********************
+
+
 async createUser(createUserDto: CreateUserDto): Promise<User> {
     const { email, password, name, mobile, role } = createUserDto;
 
@@ -69,5 +72,36 @@ async createUser(createUserDto: CreateUserDto): Promise<User> {
     });
 
     return this.userRepository.save(user);
+  }
+
+  // User ko deactivate/activate karne ka method
+  async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    user.is_active = isActive;
+    return this.userRepository.save(user);
+  }
+
+  // Password reset karne ka method
+  async resetPassword(userId: number, newPassword: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    
+    return this.userRepository.save(user);
+  }
+
+  // Saare users ko get karne ka method (admin ke liye)
+  async getAllUsers(): Promise<User[]> {
+    return this.userRepository.find();
   }
 }

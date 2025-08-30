@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Put, Delete, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { User } from './entity/user.entity';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -6,9 +6,11 @@ import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.gaurd';
 import { UserRole } from './entity/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('auth')
 export class AuthController {
+  userRepository: any;
   constructor(private authService: AuthService) {}
 
   @Post('login')
@@ -29,10 +31,50 @@ export class AuthController {
     }
   }
 
-   @Post('users')
+  // Owner Create User(Receptionist)
+
+  @Post('users')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.OWNER) // Only owner can create users
   async createUser(@Body() createUserDto: CreateUserDto) {
     return this.authService.createUser(createUserDto);
+  }
+
+   // Get all users (admin only)
+  @Get('users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER)
+  async getAllUsers() {
+    return this.authService.getAllUsers();
+  }
+
+  // Toggle user status (activate/deactivate)
+  @Put('users/:id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER)
+  async toggleUserStatus(
+    @Param('id') id: string,
+    @Body('isActive') isActive: boolean
+  ) {
+    return this.authService.toggleUserStatus(parseInt(id), isActive);
+  }
+
+  // Reset user password (admin only)
+  @Put('users/:id/password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER)
+  async resetPassword(
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto
+  ) {
+    return this.authService.resetPassword(parseInt(id), changePasswordDto.newPassword);
+  }
+
+  // Hard delete user (admin only) - use carefully
+  @Delete('users/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER)
+  async deleteUser(@Param('id') id: string) {
+    return this.userRepository.delete(parseInt(id));
   }
 }

@@ -35,6 +35,9 @@ export class User {
   @IsEnum(UserRole)
   role: UserRole;
 
+  @Column({ default: true })
+  is_active: boolean;
+
   @CreateDateColumn()
   created_at: Date;
 
