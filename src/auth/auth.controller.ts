@@ -30,11 +30,11 @@ export class AuthController {
   }
 
   // Get all users
-  @Get('users')
+  @Get('receptionists')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.OWNER)
-  async getAllUsers() {
-    return this.authService.getAllUsers();
+  async getAllReceptionists() {
+    return this.authService.getAllReceptionists();
   }
 
   // Toggle user status

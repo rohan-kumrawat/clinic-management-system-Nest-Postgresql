@@ -1,5 +1,5 @@
 
-import { ConflictException, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -96,36 +96,52 @@ export class AuthService {
   }
 
   // User ko deactivate/activate karne ka method
-  async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    
-    user.isActive = isActive;
-    return this.userRepository.save(user);
+async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
+  const user = await this.userRepository.findOne({ 
+    where: { id: userId } 
+  });
+  
+  if (!user) {
+    throw new NotFoundException('User not found');
   }
+  
+  // ✅ Check: Sirf receptionist ko modify kar sakte hain
+  if (user.role !== UserRole.RECEPTIONIST) {
+    throw new ForbiddenException('Can only modify receptionist accounts');
+  }
+  
+  user.isActive = isActive;
+  return this.userRepository.save(user);
+}
 
-  // Password reset karne ka method
-  async resetPassword(userId: number, newPassword: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    
-    return this.userRepository.save(user);
+// Password reset karne ka method
+async resetPassword(userId: number, newPassword: string): Promise<User> {
+  const user = await this.userRepository.findOne({ 
+    where: { id: userId } 
+  });
+  
+  if (!user) {
+    throw new NotFoundException('User not found');
   }
+  
+  // ✅ Check: Sirf receptionist ka password reset kar sakte hain
+  if (user.role !== UserRole.RECEPTIONIST) {
+    throw new ForbiddenException('Can only reset password for receptionist accounts');
+  }
+  
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  
+  return this.userRepository.save(user);
+}
 
   // Saare users ko get karne ka method (admin ke liye)
-  async getAllUsers(): Promise<Omit<User, 'password'>[]> {
-    const users = await this.userRepository.find();
+  async getAllReceptionists(): Promise<Omit<User, 'password'>[]> {
+    const receptionists = await this.userRepository.find({
+      where: { role: UserRole.RECEPTIONIST }
+    });
     // Password field exclude karte hain response se
-    return users.map(({ password, ...user }) => user);
+    return receptionists.map(({ password, ...user }) => user);
   }
 }
 
