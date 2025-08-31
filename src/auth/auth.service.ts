@@ -146,8 +146,8 @@ async resetReceptionistPassword(userId: number, newPassword: string): Promise<Us
 
 
 
-  // Receptionist delete karne ka method
-async deleteReceptionists(userId: number): Promise<void> {
+// Receptionist delete karne ka method (Hard Delete)
+async deleteReceptionists(userId: number): Promise<{ message: string }> {
   const user = await this.userRepository.findOne({ 
     where: { id: userId } 
   });
@@ -162,5 +162,7 @@ async deleteReceptionists(userId: number): Promise<void> {
   }
   
   await this.userRepository.delete(userId);
+  
+  return { message: 'Receptionist deleted successfully' };
 }
 }
