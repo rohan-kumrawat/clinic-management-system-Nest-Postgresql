@@ -14,6 +14,7 @@ async function bootstrap() {
     'http://localhost:3001', 
     'http://localhost:8080',
     'http://localhost:5173',
+    'https://physiodash-hub.vercel.app/', // deployed frontend
     process.env.FRONTEND_URL, // Environment variable se
   ].filter(origin => origin);
 
