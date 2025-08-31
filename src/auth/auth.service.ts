@@ -62,7 +62,7 @@ export class AuthService {
   }
 
   // Create receptionist
-  async createUser(createUserDto: CreateUserDto): Promise<User> {
+  async createReceptionists(createUserDto: CreateUserDto): Promise<User> {
     const { email, password, name, mobile, role } = createUserDto;
 
     // Check if user already exists
@@ -96,7 +96,7 @@ export class AuthService {
   }
 
   // User ko deactivate/activate karne ka method
-async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
+async toggleReceptionistsStatus(userId: number, isActive: boolean): Promise<User> {
   const user = await this.userRepository.findOne({ 
     where: { id: userId } 
   });
@@ -115,7 +115,7 @@ async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
 }
 
 // Password reset karne ka method
-async resetPassword(userId: number, newPassword: string): Promise<User> {
+async resetReceptionistPassword(userId: number, newPassword: string): Promise<User> {
   const user = await this.userRepository.findOne({ 
     where: { id: userId } 
   });
@@ -143,112 +143,24 @@ async resetPassword(userId: number, newPassword: string): Promise<User> {
     // Password field exclude karte hain response se
     return receptionists.map(({ password, ...user }) => user);
   }
+
+
+
+  // Receptionist delete karne ka method
+async deleteReceptionists(userId: number): Promise<void> {
+  const user = await this.userRepository.findOne({ 
+    where: { id: userId } 
+  });
+  
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+  
+  // ✅ Check: Sirf receptionist ko delete kar sakte hain
+  if (user.role !== UserRole.RECEPTIONIST) {
+    throw new ForbiddenException('Can only delete receptionist accounts');
+  }
+  
+  await this.userRepository.delete(userId);
 }
-
-// import {ConflictException, Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
-// import { JwtService } from '@nestjs/jwt';
-// import { InjectRepository } from '@nestjs/typeorm';
-// import { Repository } from 'typeorm';
-// import * as bcrypt from 'bcryptjs';
-// import { User } from './entity/user.entity';
-// import { CreateUserDto } from './dto/create-user.dto';
-
-
-// @Injectable()
-// export class AuthService {
-//   constructor(
-//     @InjectRepository(User)
-//     private userRepository: Repository<User>,
-//     private jwtService: JwtService,
-//   ) {}
-
-//   async validateUser(email: string, password: string): Promise<any> {
-//     const user = await this.userRepository.findOne({ where: { email } });
-//     if (user && bcrypt.compareSync(password, user.password)) {
-//       const { password, ...result } = user;
-//       return result;
-//     }
-//     return null;
-//   }
-
-//   async login(user: any) {
-//     const payload = { email: user.email, sub: user.id, role: user.role };
-//     return {
-//       access_token: this.jwtService.sign(payload),
-//       user: 
-//       { 
-//         id: user.id, 
-//         name:user.name, 
-//         email:user.email, 
-//         role: user.role 
-//       },
-//     };
-//   }
-
-// async register(userData: Partial<User>): Promise<User> {
-//   const hashedPassword = bcrypt.hashSync(userData.password || '', 10);
-//   const user = this.userRepository.create({
-//     ...userData,
-//     password: hashedPassword,
-//   });
-//   return this.userRepository.save(user);
-// }
-
-// // Create receptionist********************
-
-
-// async createUser(createUserDto: CreateUserDto): Promise<User> {
-//     const { email, password, name, mobile, role } = createUserDto;
-
-//     // Check if user already exists
-//     const existingUser = await this.userRepository.findOne({ where: { email } });
-//     if (existingUser) {
-//       throw new ConflictException('User with this email already exists');
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // Create and save user
-//     const user = this.userRepository.create({
-//       email,
-//       password: hashedPassword,
-//       name,
-//       mobile,
-//       role,
-//     });
-
-//     return this.userRepository.save(user);
-//   }
-
-//   // User ko deactivate/activate karne ka method
-//   async toggleUserStatus(userId: number, isActive: boolean): Promise<User> {
-//     const user = await this.userRepository.findOne({ where: { id: userId } });
-    
-//     if (!user) {
-//       throw new NotFoundException('User not found');
-//     }
-    
-//     user.is_active = isActive;
-//     return this.userRepository.save(user);
-//   }
-
-//   // Password reset karne ka method
-//   async resetPassword(userId: number, newPassword: string): Promise<User> {
-//     const user = await this.userRepository.findOne({ where: { id: userId } });
-    
-//     if (!user) {
-//       throw new NotFoundException('User not found');
-//     }
-    
-//     const hashedPassword = await bcrypt.hash(newPassword, 10);
-//     user.password = hashedPassword;
-    
-//     return this.userRepository.save(user);
-//   }
-
-//   // Saare users ko get karne ka method (admin ke liye)
-//   async getAllUsers(): Promise<User[]> {
-//     return this.userRepository.find();
-//   }
-// }
+}
