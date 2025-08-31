@@ -7,12 +7,19 @@ export const isDevelopment = (): boolean => {
 };
 
 export const getDatabaseConfig = (): string => {
-  // ✅ Updated logic - Check all production database indicators
-  if (isProduction() && (
-    process.env.DATABASE_URL || 
-    process.env.DB_HOST && process.env.DB_HOST !== 'localhost'
-  )) {
+  // ✅ Check for Render.com production database indicators
+  const isRenderProductionDB = (
+    process.env.DB_HOST && 
+    (process.env.DB_HOST.includes('render.com') || 
+     process.env.DB_HOST.includes('dpg-')) // Render.com database host pattern
+  );
+  
+  const hasProductionDB = process.env.DATABASE_URL || isRenderProductionDB;
+  
+  if (isProduction() && hasProductionDB) {
     return 'Using production database (Render.com)';
+  } else if (isProduction()) {
+    return 'Production environment but using local database configuration';
   } else {
     return 'Using local development database';
   }

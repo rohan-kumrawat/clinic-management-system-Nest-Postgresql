@@ -1,13 +1,34 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { isProduction, getDatabaseConfig } from './utils/environment.util';
+import * as dotenv from 'dotenv';
+
+// ✅ Pehle environment variables load karein - Yeh sabse important step hai
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+  console.log('Loaded environment variables from .env file');
+} else {
+  console.log('Running in production mode, using system environment variables');
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // Debugging information - Environment variables check
+  // console.log('=== Environment Variables Debug ===');
+  // console.log('NODE_ENV:', process.env.NODE_ENV);
+  // console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+  // console.log('DB_HOST:', process.env.DB_HOST);
+  // console.log('DB_HOST contains "dpg-":', process.env.DB_HOST?.includes('dpg-'));
+  // console.log('DB_HOST contains "render":', process.env.DB_HOST?.includes('render'));
+  // console.log('DB_NAME:', process.env.DB_NAME);
+  // console.log('DB_USERNAME:', process.env.DB_USERNAME);
+  // console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+  // console.log('==================================');
+  
   // Environment info log
-  console.log(`Environment: ${isProduction() ? 'Production' : 'Development'}`);
-  console.log(getDatabaseConfig());
+  // console.log(`Environment: ${isProduction() ? 'Production' : 'Development'}`);
+  // console.log(getDatabaseConfig());
   
   // Allowed origins - trailing slash remove karein
   const allowedOrigins = [
@@ -19,7 +40,7 @@ async function bootstrap() {
     process.env.FRONTEND_URL, // Environment variable se
   ].filter(origin => origin && origin.trim() !== '');
 
-  console.log('Allowed origins:', allowedOrigins);
+  // console.log('Allowed origins:', allowedOrigins);
 
   // Enable CORS with simpler configuration
   app.enableCors({
@@ -53,4 +74,5 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
+
 bootstrap();
