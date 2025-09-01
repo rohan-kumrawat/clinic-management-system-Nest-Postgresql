@@ -5,7 +5,6 @@ import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
 
-
 @Injectable()
 export class SessionsService {
   constructor(
@@ -15,62 +14,104 @@ export class SessionsService {
     private doctorsService: DoctorsService,
   ) {}
 
-async create(sessionData: {
-  patient: { patient_id: number };
-  doctor?: { doctor_id: number };
-  created_by: { id: number };
-  session_date: Date;
-  remarks?: string;
-}): Promise<Session> {
-  // Verify patient exists
-  await this.patientsService.findOne(sessionData.patient.patient_id);
-  
-  // If doctor is provided, verify it exists
-  if (sessionData.doctor) {
-    await this.doctorsService.findOne(sessionData.doctor.doctor_id);
+  async create(sessionData: {
+    patient: { patient_id: number };
+    doctor?: { doctor_id: number };
+    created_by: { id: number };
+    session_date: Date;
+    remarks?: string;
+  }): Promise<Session> {
+    try {
+      // Verify patient exists
+      await this.patientsService.findOne(sessionData.patient.patient_id, null);
+      
+      // If doctor is provided, verify it exists
+      if (sessionData.doctor) {
+        await this.doctorsService.findOne(sessionData.doctor.doctor_id);
+      }
+
+      const session = this.sessionsRepository.create(sessionData);
+      return await this.sessionsRepository.save(session);
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw new Error('Failed to create session');
+    }
   }
 
-  const session = this.sessionsRepository.create(sessionData);
-  return this.sessionsRepository.save(session);
-}
-
   async findAll(): Promise<Session[]> {
-    return this.sessionsRepository.find({
-      relations: ['patient', 'doctor', 'payment'],
-    });
+    try {
+      return await this.sessionsRepository.find({
+        relations: ['patient', 'doctor'],
+      });
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      // Fallback: relations ke bina try karein
+      return await this.sessionsRepository.find();
+    }
   }
 
   async findOne(id: number): Promise<Session> {
-    const session = await this.sessionsRepository.findOne({
-      where: { session_id: id },
-      relations: ['patient', 'doctor', 'payment'],
-    });
+    try {
+      const session = await this.sessionsRepository.findOne({
+        where: { session_id: id },
+        relations: ['patient', 'doctor'],
+      });
 
-    if (!session) {
-      throw new NotFoundException(`Session with ID ${id} not found`);
+      if (!session) {
+        throw new NotFoundException(`Session with ID ${id} not found`);
+      }
+
+      return session;
+    } catch (error) {
+      console.error('Error fetching session:', error);
+      // Fallback: relations ke bina try karein
+      const session = await this.sessionsRepository.findOne({
+        where: { session_id: id }
+      });
+
+      if (!session) {
+        throw new NotFoundException(`Session with ID ${id} not found`);
+      }
+
+      return session;
     }
-
-    return session;
   }
-
-  // async findByDateRange(startDate: Date, endDate: Date): Promise<Session[]> {
-  //   return this.sessionsRepository.find({
-  //     where: {
-  //       session_date: Between(startDate, endDate),
-  //     },
-  //     relations: ['patient', 'doctor', 'payment'],
-  //   });
-  // }
 
   async update(id: number, updateData: Partial<Session>): Promise<Session> {
-    await this.sessionsRepository.update(id, updateData);
-    return this.findOne(id);
+    try {
+      await this.sessionsRepository.update(id, updateData);
+      const updatedSession = await this.sessionsRepository.findOne({
+        where: { session_id: id }
+      });
+      
+      if (!updatedSession) {
+        throw new NotFoundException(`Session with ID ${id} not found`);
+      }
+      
+      return updatedSession;
+    } catch (error) {
+      console.error('Error updating session:', error);
+      throw new Error('Failed to update session');
+    }
   }
 
-  async remove(id: number): Promise<void> {
-    const result = await this.sessionsRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Session with ID ${id} not found`);
+  async remove(id: number): Promise<{ message: string }> {
+    try {
+      const result = await this.sessionsRepository.delete(id);
+      
+      if (result.affected === 0) {
+        throw new NotFoundException(`Session with ID ${id} not found`);
+      }
+      
+      return { message: 'Session deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      
+      if (error.message.includes('foreign key constraint')) {
+        throw new Error('Cannot delete session. There are associated payments.');
+      }
+      
+      throw new Error('Failed to delete session');
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { Session } from './entity/session.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,7 +22,7 @@ export class SessionsController {
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  create(
+  async create(
     @Body() sessionData: {
       patient: { patient_id: number };
       doctor?: { doctor_id: number };
@@ -31,36 +31,62 @@ export class SessionsController {
     },
     @Req() request: AuthenticatedRequest
   ): Promise<Session> {
-    // Add created_by from the authenticated user
-    const sessionDataWithCreatedBy = {
-      ...sessionData,
-      created_by: { id: request.user.userId }
-    };
-    
-    return this.sessionsService.create(sessionDataWithCreatedBy);
+    try {
+      // Add created_by from the authenticated user
+      const sessionDataWithCreatedBy = {
+        ...sessionData,
+        created_by: { id: request.user.userId }
+      };
+      
+      return await this.sessionsService.create(sessionDataWithCreatedBy);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findAll(): Promise<Session[]> {
-    return this.sessionsService.findAll();
+  async findAll(): Promise<Session[]> {
+    try {
+      return await this.sessionsService.findAll();
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findOne(@Param('id') id: string): Promise<Session> {
-    return this.sessionsService.findOne(+id);
+  async findOne(@Param('id') id: string): Promise<Session> {
+    try {
+      return await this.sessionsService.findOne(+id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(@Param('id') id: string, @Body() updateData: Partial<Session>): Promise<Session> {
-    return this.sessionsService.update(+id, updateData);
+  async update(@Param('id') id: string, @Body() updateData: Partial<Session>): Promise<Session> {
+    try {
+      return await this.sessionsService.update(+id, updateData);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Delete(':id')
   @Roles(UserRole.OWNER)
-  remove(@Param('id') id: string): Promise<void> {
-    return this.sessionsService.remove(+id);
+  async remove(@Param('id') id: string): Promise<{ message: string }> {
+    try {
+      return await this.sessionsService.remove(+id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }
