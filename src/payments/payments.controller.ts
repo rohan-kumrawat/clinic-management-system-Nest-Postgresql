@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query, Req } from '@nestjs/common';
+// src/payments/payments.controller.ts
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query, Req, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentMode } from './entity/payment.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,20 +23,31 @@ export class PaymentsController {
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  create(
+  async create(
     @Body() paymentData: {
       patient: { patient_id: number };
       session?: { session_id: number };
       amount_paid: number;
       payment_mode?: PaymentMode;
       remarks?: string;
-      payment_date: Date;
+      payment_date: string;
     },
     @Req() request: AuthenticatedRequest
   ): Promise<Payment> {
-    // Add created_by from the authenticated user
+    // Validate and parse the date string
+    let paymentDate: Date;
+    try {
+      paymentDate = new Date(paymentData.payment_date);
+      if (isNaN(paymentDate.getTime())) {
+        throw new BadRequestException('Invalid payment_date format. Use ISO string (e.g., "2024-01-15").');
+      }
+    } catch (error) {
+      throw new BadRequestException('Invalid payment_date format. Use ISO string (e.g., "2024-01-15").');
+    }
+
     const paymentDataWithCreatedBy = {
       ...paymentData,
+      payment_date: paymentDate,
       created_by: { id: request.user.userId }
     };
     
@@ -54,7 +66,15 @@ export class PaymentsController {
     @Query('start') startDate: string,
     @Query('end') endDate: string,
   ): Promise<Payment[]> {
-    return this.paymentsService.findByDateRange(new Date(startDate), new Date(endDate));
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format. Use ISO string (e.g., "2024-01-15").');
+    }
+    
+    return this.paymentsService.findByDateRange(start, end);
   }
 
   @Get('revenue')
@@ -63,24 +83,35 @@ export class PaymentsController {
     @Query('start') startDate: string,
     @Query('end') endDate: string,
   ) {
-    return this.paymentsService.getRevenueStats(new Date(startDate), new Date(endDate));
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format. Use ISO string (e.g., "2024-01-15").');
+    }
+    
+    return this.paymentsService.getRevenueStats(start, end);
   }
 
   @Get(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findOne(@Param('id') id: string): Promise<Payment> {
-    return this.paymentsService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number): Promise<Payment> {
+    return this.paymentsService.findOne(id);
   }
 
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(@Param('id') id: string, @Body() updateData: Partial<Payment>): Promise<Payment> {
-    return this.paymentsService.update(+id, updateData);
+  update(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateData: Partial<Payment>
+  ): Promise<Payment> {
+    return this.paymentsService.update(id, updateData);
   }
 
   @Delete(':id')
   @Roles(UserRole.OWNER)
-  remove(@Param('id') id: string): Promise<void> {
-    return this.paymentsService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.paymentsService.remove(id);
   }
 }
