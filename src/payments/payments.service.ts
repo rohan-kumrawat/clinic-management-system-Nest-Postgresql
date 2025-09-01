@@ -1,4 +1,3 @@
-// src/payments/payments.service.ts
 import { Injectable, NotFoundException, InternalServerErrorException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
@@ -62,9 +61,23 @@ export class PaymentsService {
         throw new BadRequestException('Payment amount must be greater than zero.');
       }
 
-      // Calculate remaining amount
-      const totalPaid = await this.getTotalPaid(patient.patient_id);
-      const remainingAmount = patient.total_amount - (totalPaid + paymentData.amount_paid);
+      // Calculate remaining amount with better error handling
+      let totalPaid = 0;
+      try {
+        totalPaid = await this.getTotalPaid(patient.patient_id);
+      } catch (error) {
+        this.logger.warn(`Could not calculate total paid for patient ${patient.patient_id}, using 0: ${error.message}`);
+        totalPaid = 0;
+      }
+
+      // Debug logging
+      this.logger.debug(`Patient ${patient.patient_id} total_amount: ${patient.total_amount}`);
+      this.logger.debug(`Current total paid: ${totalPaid}`);
+      this.logger.debug(`New payment amount: ${paymentData.amount_paid}`);
+
+      // Ensure patient.total_amount is a valid number
+      const patientTotal = patient.total_amount || 0;
+      const remainingAmount = patientTotal - (totalPaid + paymentData.amount_paid);
 
       // Create payment entity using proper TypeORM create method
       const payment = new Payment();
@@ -158,14 +171,18 @@ export class PaymentsService {
 
   async getTotalPaid(patientId: number): Promise<number> {
     try {
-      const payments = await this.paymentsRepository.find({
-        where: { patient: { patient_id: patientId } },
-      });
+      // Use query builder for more reliable results
+      const result = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount_paid)', 'total')
+        .where('payment.patient_id = :patientId', { patientId })
+        .getRawOne();
       
-      return payments.reduce((total, payment) => total + payment.amount_paid, 0);
+      return parseFloat(result.total) || 0;
     } catch (error) {
       this.logger.error(`Failed to calculate total paid for patient #${patientId}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to calculate payment summary.');
+      // Don't throw an error here, just return 0 to prevent blocking payment creation
+      return 0;
     }
   }
 

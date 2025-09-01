@@ -46,7 +46,7 @@ export class Patient {
   @Column('decimal', { precision: 10, scale: 2 })
   discount_amount: number;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
   total_amount: number;
 
   @Column()
