@@ -11,38 +11,90 @@ export class DoctorsService {
   ) {}
 
   async create(doctorData: Partial<Doctor>): Promise<Doctor> {
-  const doctor = this.doctorsRepository.create(doctorData);
-  return this.doctorsRepository.save(doctor);
-}
+    try {
+      const doctor = this.doctorsRepository.create(doctorData);
+      return await this.doctorsRepository.save(doctor);
+    } catch (error) {
+      console.error('Error creating doctor:', error);
+      throw new Error('Failed to create doctor');
+    }
+  }
 
   async findAll(): Promise<Doctor[]> {
-    return this.doctorsRepository.find({
-      relations: ['patients', 'sessions'],
-    });
+    try {
+      return await this.doctorsRepository.find({
+        relations: ['patients', 'sessions'],
+      });
+    } catch (error) {
+      console.error('Error fetching doctors:', error);
+      // Relations ke bina try karein
+      return await this.doctorsRepository.find();
+    }
   }
 
   async findOne(id: number): Promise<Doctor> {
-    const doctor = await this.doctorsRepository.findOne({
-      where: { doctor_id: id },
-      relations: ['patients', 'sessions'],
-    });
+    try {
+      const doctor = await this.doctorsRepository.findOne({
+        where: { doctor_id: id },
+        relations: ['patients', 'sessions'],
+      });
 
-    if (!doctor) {
-      throw new NotFoundException(`Doctor with ID ${id} not found`);
+      if (!doctor) {
+        throw new NotFoundException(`Doctor with ID ${id} not found`);
+      }
+
+      return doctor;
+    } catch (error) {
+      console.error('Error fetching doctor:', error);
+      // Relations ke bina try karein
+      const doctor = await this.doctorsRepository.findOne({
+        where: { doctor_id: id }
+      });
+      
+      if (!doctor) {
+        throw new NotFoundException(`Doctor with ID ${id} not found`);
+      }
+      
+      return doctor;
     }
-
-    return doctor;
   }
 
   async update(id: number, updateData: Partial<Doctor>): Promise<Doctor> {
-    await this.doctorsRepository.update(id, updateData);
-    return this.findOne(id);
+    try {
+      await this.doctorsRepository.update(id, updateData);
+      const updatedDoctor = await this.doctorsRepository.findOne({
+        where: { doctor_id: id }
+      });
+      
+      if (!updatedDoctor) {
+        throw new NotFoundException(`Doctor with ID ${id} not found`);
+      }
+      
+      return updatedDoctor;
+    } catch (error) {
+      console.error('Error updating doctor:', error);
+      throw new Error('Failed to update doctor');
+    }
   }
 
-  async remove(id: number): Promise<void> {
-    const result = await this.doctorsRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Doctor with ID ${id} not found`);
+  async remove(id: number): Promise<{ message: string }> {
+    try {
+      const result = await this.doctorsRepository.delete(id);
+      
+      if (result.affected === 0) {
+        throw new NotFoundException(`Doctor with ID ${id} not found`);
+      }
+      
+      return { message: 'Doctor deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting doctor:', error);
+      
+      // Agar foreign key constraint error hai to
+      if (error.message.includes('foreign key constraint')) {
+        throw new Error('Cannot delete doctor. There are associated patients or sessions.');
+      }
+      
+      throw new Error('Failed to delete doctor');
     }
   }
 }

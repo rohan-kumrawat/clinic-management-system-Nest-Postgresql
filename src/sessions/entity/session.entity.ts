@@ -11,9 +11,11 @@ export class Session {
   session_id: number;
 
   @ManyToOne(() => Patient, patient => patient.sessions)
+  @JoinColumn({ name: 'patient_id' }) // ✅ Explicit join column add karein
   patient: Patient;
 
   @ManyToOne(() => Doctor, doctor => doctor.sessions)
+  @JoinColumn({ name: 'doctor_id' }) // ✅ Explicit join column add karein
   doctor: Doctor;
 
   @ManyToOne(() => User)

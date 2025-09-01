@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -59,6 +59,7 @@ export class Patient {
   attachment: string;
 
   @ManyToOne(() => Doctor, doctor => doctor.patients)
+  @JoinColumn({ name: 'assigned_doctor_id' }) // ✅ Explicit join column add karein
   assigned_doctor: Doctor;
 
   @Column({

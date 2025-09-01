@@ -37,7 +37,7 @@ export class DoctorsController {
 
   @Delete(':id')
   @Roles(UserRole.OWNER)
-  remove(@Param('id') id: string): Promise<void> {
+  remove(@Param('id') id: string): Promise<{ message: string }> {
     return this.doctorsService.remove(+id);
   }
 }
