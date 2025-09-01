@@ -30,12 +30,15 @@ export class PaymentsService {
   }): Promise<Payment> {
     try {
       this.logger.debug(`Creating payment for patient ID: ${paymentData.patient.patient_id}`);
+      this.logger.debug(`Payment data: ${JSON.stringify(paymentData)}`);
       
       // Verify patient exists
       const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${paymentData.patient.patient_id} not found`);
       }
+      
+      this.logger.debug(`Found patient: ${JSON.stringify(patient)}`);
       
       // Check if patient.total_amount exists
       if (patient.total_amount === undefined || patient.total_amount === null) {
@@ -48,10 +51,12 @@ export class PaymentsService {
       if (paymentData.session && paymentData.session.session_id) {
         try {
           sessionEntity = await this.sessionsService.findOne(paymentData.session.session_id);
+          this.logger.debug(`Found session: ${JSON.stringify(sessionEntity)}`);
         } catch (error) {
           if (error instanceof NotFoundException) {
             throw new NotFoundException(`Session with ID ${paymentData.session.session_id} not found`);
           }
+          this.logger.error(`Error finding session: ${error.message}`, error.stack);
           throw error;
         }
       }
@@ -65,6 +70,7 @@ export class PaymentsService {
       let totalPaid = 0;
       try {
         totalPaid = await this.getTotalPaid(patient.patient_id);
+        this.logger.debug(`Total paid for patient ${patient.patient_id}: ${totalPaid}`);
       } catch (error) {
         this.logger.warn(`Could not calculate total paid for patient ${patient.patient_id}, using 0: ${error.message}`);
         totalPaid = 0;
@@ -78,6 +84,7 @@ export class PaymentsService {
       // Ensure patient.total_amount is a valid number
       const patientTotal = patient.total_amount || 0;
       const remainingAmount = patientTotal - (totalPaid + paymentData.amount_paid);
+      this.logger.debug(`Calculated remaining amount: ${remainingAmount}`);
 
       // Create payment entity using proper TypeORM create method
       const payment = new Payment();
@@ -90,12 +97,15 @@ export class PaymentsService {
       payment.payment_date = paymentData.payment_date;
       payment.remaining_amount = remainingAmount < 0 ? 0 : remainingAmount;
 
+      this.logger.debug(`Attempting to save payment: ${JSON.stringify(payment)}`);
+      
       const savedPayment = await this.paymentsRepository.save(payment);
       this.logger.log(`Payment #${savedPayment.payment_id} created successfully for patient #${patient.patient_id}`);
       return savedPayment;
 
     } catch (error) {
       this.logger.error(`Failed to create payment: ${error.message}`, error.stack);
+      this.logger.error(`Error details: ${JSON.stringify(error)}`);
       
       // Re-throw known exceptions
       if (error instanceof NotFoundException || 
@@ -106,6 +116,30 @@ export class PaymentsService {
       
       // Wrap any other unexpected error
       throw new InternalServerErrorException('Failed to process payment due to an internal error.');
+    }
+  }
+
+  async getTotalPaid(patientId: number): Promise<number> {
+    try {
+      this.logger.debug(`Calculating total paid for patient ID: ${patientId}`);
+      
+      // Use query builder for more reliable results
+      const result = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount_paid)', 'total')
+        .where('payment.patient_id = :patientId', { patientId })
+        .getRawOne();
+      
+      this.logger.debug(`Query result: ${JSON.stringify(result)}`);
+      
+      const total = parseFloat(result.total) || 0;
+      this.logger.debug(`Total paid: ${total}`);
+      
+      return total;
+    } catch (error) {
+      this.logger.error(`Failed to calculate total paid for patient #${patientId}: ${error.message}`, error.stack);
+      // Don't throw an error here, just return 0 to prevent blocking payment creation
+      return 0;
     }
   }
 
@@ -166,23 +200,6 @@ export class PaymentsService {
       }
       
       throw new InternalServerErrorException('Failed to retrieve payments by date range.');
-    }
-  }
-
-  async getTotalPaid(patientId: number): Promise<number> {
-    try {
-      // Use query builder for more reliable results
-      const result = await this.paymentsRepository
-        .createQueryBuilder('payment')
-        .select('SUM(payment.amount_paid)', 'total')
-        .where('payment.patient_id = :patientId', { patientId })
-        .getRawOne();
-      
-      return parseFloat(result.total) || 0;
-    } catch (error) {
-      this.logger.error(`Failed to calculate total paid for patient #${patientId}: ${error.message}`, error.stack);
-      // Don't throw an error here, just return 0 to prevent blocking payment creation
-      return 0;
     }
   }
 

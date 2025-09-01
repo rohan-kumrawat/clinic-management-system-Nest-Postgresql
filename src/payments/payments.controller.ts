@@ -114,4 +114,31 @@ export class PaymentsController {
   remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.paymentsService.remove(id);
   }
+
+
+  @Get('debug/test')
+@Roles(UserRole.OWNER)
+async debugTest(): Promise<any> {
+  try {
+    // Test patient service
+    const patient = await this.paymentsService['patientsService'].findOne(3);
+    
+    // Test session service
+    const session = await this.paymentsService['sessionsService'].findOne(1);
+    
+    // Test getTotalPaid
+    const totalPaid = await this.paymentsService['getTotalPaid'](3);
+    
+    return {
+      patient,
+      session,
+      totalPaid
+    };
+  } catch (error) {
+    return {
+      error: error.message,
+      stack: error.stack
+    };
+  }
+}
 }
