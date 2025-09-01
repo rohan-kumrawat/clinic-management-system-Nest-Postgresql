@@ -17,11 +17,12 @@ export class Payment {
   payment_id: number;
 
   @ManyToOne(() => Patient, patient => patient.payments)
+  @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
   @OneToOne(() => Session, { nullable: true })
-  @JoinColumn()
-  session: Session | null; // Changed to allow null
+  @JoinColumn({ name: 'session_id' })
+  session: Session | null; // This can be null
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'created_by' })
