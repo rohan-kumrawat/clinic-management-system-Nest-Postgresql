@@ -1,11 +1,10 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.gaurd'; // Fixed typo: gaurd -> guard
+import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
-import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 
@@ -24,58 +23,93 @@ export class PatientsController {
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  create(@Body() patientData: Partial<Patient>): Promise<Patient> {
-    return this.patientsService.create(patientData);
+  async create(@Body() patientData: Partial<Patient>): Promise<Patient> {
+    try {
+      return await this.patientsService.create(patientData);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Post(':id/upload')
-@UseInterceptors(FileInterceptor('file'))
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async uploadFile(
-  @Param('id') id: string,
-  @UploadedFile() file: Express.Multer.File,
-  @Req() request: AuthenticatedRequest
-) {
-  const userRole = request.user.role;
-  const patient = await this.patientsService.findOne(+id, userRole);
-  patient.attachment = file.filename;
-  await this.patientsService.update(+id, patient, userRole);
-}
+  @UseInterceptors(FileInterceptor('file'))
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async uploadFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: AuthenticatedRequest
+  ) {
+    try {
+      const userRole = request.user.role;
+      const patient = await this.patientsService.findOne(+id, userRole);
+      patient.attachment = file.filename;
+      await this.patientsService.update(+id, patient, userRole);
+      return { message: 'File uploaded successfully' };
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findAll(@Req() request: AuthenticatedRequest): Promise<Patient[]> {
-    const userRole = request.user.role;
-    return this.patientsService.findAll(userRole);
+  async findAll(@Req() request: AuthenticatedRequest): Promise<Patient[]> {
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.findAll(userRole);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get('stats')
   @Roles(UserRole.OWNER)
-  getStats() {
-    return this.patientsService.getStats();
+  async getStats() {
+    try {
+      return await this.patientsService.getStats();
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest): Promise<Patient> {
-    const userRole = request.user.role;
-    return this.patientsService.findOne(+id, userRole);
+  async findOne(@Param('id') id: string, @Req() request: AuthenticatedRequest): Promise<Patient> {
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.findOne(+id, userRole);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(
+  async update(
     @Param('id') id: string, 
     @Body() updateData: Partial<Patient>,
     @Req() request: AuthenticatedRequest
   ): Promise<Patient> {
-    const userRole = request.user.role;
-    return this.patientsService.update(+id, updateData, userRole);
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.update(+id, updateData, userRole);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Delete(':id')
   @Roles(UserRole.OWNER)
-  remove(@Param('id') id: string): Promise<void> {
-    return this.patientsService.remove(+id);
+  async remove(@Param('id') id: string): Promise<{ message: string }> {
+    try {
+      return await this.patientsService.remove(+id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }
