@@ -23,45 +23,6 @@ export class DoctorsService {
     }
   }
 
-  // async findAll(): Promise<Doctor[]> {
-  //   try {
-  //     return await this.doctorsRepository.find({
-  //       relations: ['patients', 'sessions'],
-  //     });
-  //   } catch (error) {
-  //     console.error('Error fetching doctors:', error);
-  //     // Relations ke bina try karein
-  //     return await this.doctorsRepository.find();
-  //   }
-  // }
-
-  // async findOne(id: number): Promise<Doctor> {
-  //   try {
-  //     const doctor = await this.doctorsRepository.findOne({
-  //       where: { doctor_id: id },
-  //       relations: ['patients', 'sessions'],
-  //     });
-
-  //     if (!doctor) {
-  //       throw new NotFoundException(`Doctor with ID ${id} not found`);
-  //     }
-
-  //     return doctor;
-  //   } catch (error) {
-  //     console.error('Error fetching doctor:', error);
-  //     // Relations ke bina try karein
-  //     const doctor = await this.doctorsRepository.findOne({
-  //       where: { doctor_id: id }
-  //     });
-      
-  //     if (!doctor) {
-  //       throw new NotFoundException(`Doctor with ID ${id} not found`);
-  //     }
-      
-  //     return doctor;
-  //   }
-  // }
-
 
  async findAll(): Promise<Doctor[]> {
     const doctors = await this.doctorsRepository.find({
@@ -87,6 +48,24 @@ export class DoctorsService {
 
     return doctorsWithCount;
   }
+
+
+
+  async findAllForDropdown(): Promise<{ doctor_id: number; name: string }[]> {
+    try {
+      const doctors = await this.doctorsRepository.find({
+        select: ['doctor_id', 'name'], // Sirf yeh do fields select karein
+        where: { status: true }, // Sirf active doctors
+        order: { name: 'ASC' }, // Name ke hisaab se sort
+      });
+      
+      return doctors;
+    } catch (error) {
+      console.error('Error fetching doctors for dropdown:', error);
+      throw new Error('Failed to fetch doctors for dropdown');
+    }
+  }
+
 
   async findOne(id: number): Promise<Doctor> {
     const doctor = await this.doctorsRepository.findOne({

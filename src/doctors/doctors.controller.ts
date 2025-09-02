@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, UseInterceptors, ClassSerializerInterceptor } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, UseInterceptors, ClassSerializerInterceptor, HttpException, HttpStatus } from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
 import { Doctor } from './entity/doctor.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
+import { request } from 'express';
 
 @Controller('doctors')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,6 +23,16 @@ export class DoctorsController {
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   findAll(): Promise<Doctor[]> {
     return this.doctorsService.findAll();
+  }
+
+  @Get('dropdown')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findAllForDropdown(): Promise<{ doctor_id: number; name: string }[]> {
+    try {
+      return await this.doctorsService.findAllForDropdown();
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Get(':id')
