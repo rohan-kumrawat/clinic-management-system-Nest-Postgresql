@@ -20,9 +20,9 @@ export class Payment {
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @OneToOne(() => Session, { nullable: true })
+  @OneToOne(() => Session, session => session.payment || null, { nullable: true })
   @JoinColumn({ name: 'session_id' })
-  session: Session | null; // This can be null
+  session: Session | null; // Optional association with a session
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'created_by' })

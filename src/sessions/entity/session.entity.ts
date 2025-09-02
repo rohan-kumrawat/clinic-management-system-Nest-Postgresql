@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
-import { IsNotEmpty } from 'class-validator';
+//import { IsNotEmpty } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Payment } from '../../payments/entity/payment.entity';

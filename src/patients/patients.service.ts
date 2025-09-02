@@ -18,6 +18,11 @@ export class PatientsService {
         patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
       }
 
+      // If assigned_doctor is provided with doctor_id, use just the ID
+      if (patientData.assigned_doctor && (patientData.assigned_doctor as any).doctor_id) {
+        patientData.assigned_doctor = { doctor_id: (patientData.assigned_doctor as any).doctor_id } as any;
+      }
+
       const patient = this.patientsRepository.create(patientData);
       return await this.patientsRepository.save(patient);
     } catch (error) {
@@ -26,100 +31,128 @@ export class PatientsService {
     }
   }
 
- async findAll(userRole: UserRole): Promise<Patient[]> {
+  async findAll(userRole: UserRole): Promise<Patient[]> {
     try {
       let patients: Patient[];
       
       if (userRole === UserRole.RECEPTIONIST) {
-        // Receptionist sirf active patients dekh sakta hai with sessions count
         patients = await this.patientsRepository.find({
           where: { status: PatientStatus.ACTIVE },
-          relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
+          relations: ['assigned_doctor'],
         });
       } else if (userRole === UserRole.OWNER) {
-        // Owner sabhi patients dekh sakta hai with sessions count
         patients = await this.patientsRepository.find({
-          relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
+          relations: ['assigned_doctor'],
         });
       } else {
         throw new ForbiddenException('Access denied');
       }
       
-      return patients;
+      // Add sessions count and paid amount for each patient
+      return await this.addSessionAndPaymentStats(patients);
     } catch (error) {
       console.error('Error fetching patients:', error);
-      
-      // Fallback: Relations ke bina try karein
+      throw new Error('Failed to fetch patients');
+    }
+  }
+
+  async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
+    try {
+      let patient: Patient | null;
+
       if (userRole === UserRole.RECEPTIONIST) {
-        return await this.patientsRepository.find({
-          where: { status: PatientStatus.ACTIVE }
+        patient = await this.patientsRepository.findOne({
+          where: { patient_id: id, status: PatientStatus.ACTIVE },
+          relations: ['assigned_doctor'],
         });
       } else {
-        return await this.patientsRepository.find();
+        patient = await this.patientsRepository.findOne({
+          where: { patient_id: id },
+          relations: ['assigned_doctor'],
+        });
       }
-    }
-  }
-
-   async findAllActive(): Promise<Patient[]> {
-    try {
-      return await this.patientsRepository.find({
-        where: { status: PatientStatus.ACTIVE },
-        relations: ['assigned_doctor'],
-        order: { name: 'ASC' }, // Optional: Name ke hisaab se sort karein
-      });
-    } catch (error) {
-      console.error('Error fetching active patients:', error);
-      
-      // Fallback: Relations ke bina try karein
-      return await this.patientsRepository.find({
-        where: { status: PatientStatus.ACTIVE },
-        order: { name: 'ASC' },
-      });
-    }
-  }
-
-   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
-    try {
-      const patient = await this.patientsRepository.findOne({
-        where: { patient_id: id },
-        relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
-      });
 
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
 
-      // Agar user role provided hai aur user receptionist hai aur patient active nahi hai
-      if (userRole !== null && userRole === UserRole.RECEPTIONIST && patient.status !== PatientStatus.ACTIVE) {
-        throw new ForbiddenException('Access denied to non-active patients');
-      }
-
-      return patient;
+      // Add sessions count and paid amount
+      const patientsWithStats = await this.addSessionAndPaymentStats([patient]);
+      return patientsWithStats[0];
     } catch (error) {
       console.error('Error fetching patient:', error);
-      
-      // Fallback: Relations ke bina try karein
-      const patient = await this.patientsRepository.findOne({
-        where: { patient_id: id }
-      });
-
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
-      }
-
-      if (userRole !== null && userRole === UserRole.RECEPTIONIST && patient.status !== PatientStatus.ACTIVE) {
-        throw new ForbiddenException('Access denied to non-active patients');
-      }
-
-      return patient;
+      throw new Error('Failed to fetch patient');
     }
+  }
+
+  async findAllActive(): Promise<Patient[]> {
+    try {
+      const patients = await this.patientsRepository.find({
+        where: { status: PatientStatus.ACTIVE },
+        relations: ['assigned_doctor'],
+        order: { name: 'ASC' },
+      });
+      
+      // Add sessions count and paid amount for each patient
+      return await this.addSessionAndPaymentStats(patients);
+    } catch (error) {
+      console.error('Error fetching active patients:', error);
+      throw new Error('Failed to fetch active patients');
+    }
+  }
+
+  // Helper method to add session and payment stats
+  private async addSessionAndPaymentStats(patients: Patient[]): Promise<Patient[]> {
+    if (patients.length === 0) return patients;
+
+    const patientIds = patients.map(p => p.patient_id);
+    
+    // Get sessions count for each patient
+    const sessionCounts = await this.patientsRepository
+      .createQueryBuilder('patient')
+      .leftJoin('patient.sessions', 'session')
+      .select('patient.patient_id', 'patient_id')
+      .addSelect('COUNT(session.session_id)', 'sessions_count')
+      .where('patient.patient_id IN (:...patientIds)', { patientIds })
+      .groupBy('patient.patient_id')
+      .getRawMany();
+
+    // Get paid amount for each patient
+    const paidAmounts = await this.patientsRepository
+      .createQueryBuilder('patient')
+      .leftJoin('patient.payments', 'payment')
+      .select('patient.patient_id', 'patient_id')
+      .addSelect('COALESCE(SUM(payment.amount_paid), 0)', 'paid_amount')
+      .where('patient.patient_id IN (:...patientIds)', { patientIds })
+      .groupBy('patient.patient_id')
+      .getRawMany();
+
+    // Map the stats to patients and format assigned_doctor
+    return patients.map(patient => {
+      const sessionCount = sessionCounts.find(sc => sc.patient_id === patient.patient_id);
+      const paidAmount = paidAmounts.find(pa => pa.patient_id === patient.patient_id);
+      
+      // Format assigned_doctor to only include id and name
+      const formattedDoctor = patient.assigned_doctor ? {
+        doctor_id: patient.assigned_doctor.doctor_id,
+        name: patient.assigned_doctor.name
+      } : null;
+      
+      // Create a new object with the required properties
+      return {
+        ...patient,
+        assigned_doctor: formattedDoctor,
+        attended_sessions_count: sessionCount ? parseInt(sessionCount.sessions_count) : 0,
+        paid_amount: paidAmount ? parseFloat(paidAmount.paid_amount) : 0,
+      } as Patient;
+    });
   }
 
   async update(id: number, updateData: Partial<Patient>, userRole: UserRole | null = null): Promise<Patient> {
     try {
       // Pehle patient access check karein
       await this.findOne(id, userRole);
-      
+
       // Recalculate per_session_amount if total_sessions or total_amount changed
       if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined)) {
         const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
@@ -128,7 +161,7 @@ export class PatientsService {
         }
         const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
         const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
-        
+
         if (newTotalSessions > 0) {
           updateData.per_session_amount = newTotalAmount / newTotalSessions;
         }
@@ -145,19 +178,19 @@ export class PatientsService {
   async remove(id: number): Promise<{ message: string }> {
     try {
       const result = await this.patientsRepository.delete(id);
-      
+
       if (result.affected === 0) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
-      
+
       return { message: 'Patient deleted successfully' };
     } catch (error) {
       console.error('Error deleting patient:', error);
-      
+
       if (error.message.includes('foreign key constraint')) {
         throw new Error('Cannot delete patient. There are associated sessions or payments.');
       }
-      
+
       throw new Error('Failed to delete patient');
     }
   }
@@ -166,13 +199,13 @@ export class PatientsService {
     total: number;
     active: number;
     discharged: number;
-    
+
   }> {
     try {
       const total = await this.patientsRepository.count();
       const active = await this.patientsRepository.count({ where: { status: PatientStatus.ACTIVE } });
       const discharged = await this.patientsRepository.count({ where: { status: PatientStatus.DISCHARGED } });
-      
+
 
       return { total, active, discharged, };
     } catch (error) {

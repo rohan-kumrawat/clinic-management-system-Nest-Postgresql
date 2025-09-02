@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Patient, PatientStatus } from '../patients/entity/patient.entity';
@@ -75,18 +75,26 @@ export class ReportsService {
       .getRawMany();
   }
 
-  async getPatientHistory(patientId: number) {
+  async getPatientHistory(id: number): Promise<any> {
     const patient = await this.patientsRepository.findOne({
-      where: { patient_id: patientId },
-      relations: ['sessions', 'sessions.doctor', 'payments'],
+      where: { patient_id: id },
+      relations: ['sessions', 'payment', 'assigned_doctor'],
     });
 
     if (!patient) {
-      throw new Error('Patient not found');
+      throw new NotFoundException('Patient with ID ${id} not found');
     }
 
+    //Calculate total paid and remaining amount
+      const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
+      const remainingAmount = patient.total_amount - totalPaid;
+
     return {
-      patient,
+      patient:{
+        ...patient,
+        totalPaid,
+        remainingAmount
+      },
       sessions: patient.sessions,
       payments: patient.payments,
       totalPaid: patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0),

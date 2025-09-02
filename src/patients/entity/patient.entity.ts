@@ -1,11 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, AfterLoad } from 'typeorm';
-import { IsNotEmpty, IsEnum } from 'class-validator';
+// src/patients/entity/patient.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 
 export enum PatientStatus {
   ACTIVE = 'active',
+  INACTIVE = 'inactive',
   DISCHARGED = 'discharged',
 }
 
@@ -21,7 +22,6 @@ export class Patient {
   reg_no: string;
 
   @Column()
-  @IsNotEmpty()
   name: string;
 
   @Column()
@@ -30,13 +30,13 @@ export class Patient {
   @Column()
   visit_type: string;
 
-  @Column({ nullable: true })
+  @Column()
   referred_dr: string;
 
   @Column()
   mobile: string;
 
-  @Column({ nullable: true })
+  @Column()
   package_name: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
@@ -45,7 +45,7 @@ export class Patient {
   @Column('decimal', { precision: 10, scale: 2 })
   discount_amount: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  @Column('decimal', { precision: 10, scale: 2 })
   total_amount: number;
 
   @Column()
@@ -58,15 +58,19 @@ export class Patient {
   attachment: string;
 
   @ManyToOne(() => Doctor, doctor => doctor.patients)
-  @JoinColumn({ name: 'assigned_doctor_id' })
   assigned_doctor: Doctor;
+
+  @OneToMany(() => Session, session => session.patient)
+  sessions: Session[];
+
+  @OneToMany(() => Payment, payment => payment.patient)
+  payments: Payment[];
 
   @Column({
     type: 'enum',
     enum: PatientStatus,
     default: PatientStatus.ACTIVE,
   })
-  @IsEnum(PatientStatus)
   status: PatientStatus;
 
   @CreateDateColumn()
@@ -75,21 +79,7 @@ export class Patient {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @OneToMany(() => Session, session => session.patient)
-  sessions: Session[];
-
-  @OneToMany(() => Payment, payment => payment.patient)
-  payments: Payment[];
-
-   attended_sessions_count: number;
-
-  // Method to calculate attended sessions count after entity is loaded
-  @AfterLoad()
-  calculateAttendedSessions() {
-    if (this.sessions && Array.isArray(this.sessions)) {
-      this.attended_sessions_count = this.sessions.length;
-    } else {
-      this.attended_sessions_count = 0;
-    }
-  }
+  // Virtual fields (not stored in database)
+  attended_sessions_count: number;
+  paid_amount: number;
 }
