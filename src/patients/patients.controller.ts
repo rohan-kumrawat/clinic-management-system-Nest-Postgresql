@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -30,6 +31,19 @@ export class PatientsController {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Get('active')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+@UseInterceptors(CacheInterceptor) // Cache add karein
+@CacheKey('active_patients')
+@CacheTTL(30000) // 30 seconds cache
+async findAllActive(): Promise<Patient[]> {
+  try {
+    return await this.patientsService.findAllActive();
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 
   @Post(':id/upload')
   @UseInterceptors(FileInterceptor('file'))

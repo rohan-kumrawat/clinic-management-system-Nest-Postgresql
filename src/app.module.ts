@@ -12,10 +12,15 @@ import { DoctorsModule } from './doctors/doctors.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PaymentsModule } from './payments/payments.module';
 import { ReportsModule } from './reports/reports.module';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot(databaseConfig),
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 30000,
+    }),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',

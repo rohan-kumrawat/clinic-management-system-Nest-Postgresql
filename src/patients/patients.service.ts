@@ -56,6 +56,24 @@ export class PatientsService {
     }
   }
 
+   async findAllActive(): Promise<Patient[]> {
+    try {
+      return await this.patientsRepository.find({
+        where: { status: PatientStatus.ACTIVE },
+        relations: ['assigned_doctor'],
+        order: { name: 'ASC' }, // Optional: Name ke hisaab se sort karein
+      });
+    } catch (error) {
+      console.error('Error fetching active patients:', error);
+      
+      // Fallback: Relations ke bina try karein
+      return await this.patientsRepository.find({
+        where: { status: PatientStatus.ACTIVE },
+        order: { name: 'ASC' },
+      });
+    }
+  }
+
   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       const patient = await this.patientsRepository.findOne({
