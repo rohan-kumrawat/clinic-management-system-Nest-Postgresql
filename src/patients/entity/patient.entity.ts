@@ -1,5 +1,5 @@
 // src/patients/entity/patient.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
@@ -58,6 +58,7 @@ export class Patient {
   attachment: string;
 
   @ManyToOne(() => Doctor, doctor => doctor.patients)
+  @JoinColumn({ name: 'assigned_doctor_id' }) // Explicitly specify the column name
   assigned_doctor: Doctor;
 
   @OneToMany(() => Session, session => session.patient)
