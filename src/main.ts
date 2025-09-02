@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { isProduction, getDatabaseConfig } from './utils/environment.util';
+import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import compression from 'compression';
 
@@ -22,6 +23,14 @@ async function bootstrap() {
       }
       return compression.filter(req, res);
     }
+  }));
+
+   // Enable class-transformer globally
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true,
+    transformOptions: {
+      enableImplicitConversion: true,
+    },
   }));
   
   // Environment info log

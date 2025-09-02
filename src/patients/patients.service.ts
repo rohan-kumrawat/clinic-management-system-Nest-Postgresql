@@ -143,16 +143,16 @@ export class PatientsService {
   async getStats(): Promise<{
     total: number;
     active: number;
-    completed: number;
-    dropped: number;
+    discharged: number;
+    
   }> {
     try {
       const total = await this.patientsRepository.count();
       const active = await this.patientsRepository.count({ where: { status: PatientStatus.ACTIVE } });
-      const completed = await this.patientsRepository.count({ where: { status: PatientStatus.COMPLETED } });
-      const dropped = await this.patientsRepository.count({ where: { status: PatientStatus.DROPPED } });
+      const discharged = await this.patientsRepository.count({ where: { status: PatientStatus.DISCHARGED } });
+      
 
-      return { total, active, completed, dropped };
+      return { total, active, discharged, };
     } catch (error) {
       console.error('Error getting patient stats:', error);
       throw new Error('Failed to get patient statistics');

@@ -48,6 +48,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { IsNotEmpty } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('doctors')
 export class Doctor {
@@ -83,8 +84,12 @@ export class Doctor {
   updated_at: Date;
 
   @OneToMany(() => Patient, patient => patient.assigned_doctor)
+  @Exclude()
   patients: Patient[];
 
   @OneToMany(() => Session, session => session.doctor)
+  @Exclude()
   sessions: Session[];
+
+  active_patients_count?: number;
 }

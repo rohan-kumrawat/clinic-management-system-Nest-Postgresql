@@ -6,8 +6,7 @@ import { Payment } from '../../payments/entity/payment.entity';
 
 export enum PatientStatus {
   ACTIVE = 'active',
-  COMPLETED = 'completed',
-  DROPPED = 'dropped',
+  DISCHARGED = 'discharged',
 }
 
 @Entity('patients')

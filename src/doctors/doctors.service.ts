@@ -2,12 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Doctor } from './entity/doctor.entity';
+import { Patient, PatientStatus } from '../patients/entity/patient.entity';
 
 @Injectable()
 export class DoctorsService {
   constructor(
     @InjectRepository(Doctor)
     private doctorsRepository: Repository<Doctor>,
+    @InjectRepository(Patient)
+    private patientsRepository: Repository<Patient>,
   ) {}
 
   async create(doctorData: Partial<Doctor>): Promise<Doctor> {
@@ -20,43 +23,92 @@ export class DoctorsService {
     }
   }
 
-  async findAll(): Promise<Doctor[]> {
-    try {
-      return await this.doctorsRepository.find({
-        relations: ['patients', 'sessions'],
-      });
-    } catch (error) {
-      console.error('Error fetching doctors:', error);
-      // Relations ke bina try karein
-      return await this.doctorsRepository.find();
-    }
+  // async findAll(): Promise<Doctor[]> {
+  //   try {
+  //     return await this.doctorsRepository.find({
+  //       relations: ['patients', 'sessions'],
+  //     });
+  //   } catch (error) {
+  //     console.error('Error fetching doctors:', error);
+  //     // Relations ke bina try karein
+  //     return await this.doctorsRepository.find();
+  //   }
+  // }
+
+  // async findOne(id: number): Promise<Doctor> {
+  //   try {
+  //     const doctor = await this.doctorsRepository.findOne({
+  //       where: { doctor_id: id },
+  //       relations: ['patients', 'sessions'],
+  //     });
+
+  //     if (!doctor) {
+  //       throw new NotFoundException(`Doctor with ID ${id} not found`);
+  //     }
+
+  //     return doctor;
+  //   } catch (error) {
+  //     console.error('Error fetching doctor:', error);
+  //     // Relations ke bina try karein
+  //     const doctor = await this.doctorsRepository.findOne({
+  //       where: { doctor_id: id }
+  //     });
+      
+  //     if (!doctor) {
+  //       throw new NotFoundException(`Doctor with ID ${id} not found`);
+  //     }
+      
+  //     return doctor;
+  //   }
+  // }
+
+
+ async findAll(): Promise<Doctor[]> {
+    const doctors = await this.doctorsRepository.find({
+      order: { name: 'ASC' },
+    });
+
+    // Har doctor ke liye active patients count calculate karein
+    const doctorsWithCount = await Promise.all(
+      doctors.map(async (doctor) => {
+        const activePatientsCount = await this.patientsRepository.count({
+          where: {
+            assigned_doctor: { doctor_id: doctor.doctor_id },
+            status: PatientStatus.ACTIVE,
+          },
+        });
+        
+        return {
+          ...doctor,
+          active_patients_count: activePatientsCount,
+        };
+      })
+    );
+
+    return doctorsWithCount;
   }
 
   async findOne(id: number): Promise<Doctor> {
-    try {
-      const doctor = await this.doctorsRepository.findOne({
-        where: { doctor_id: id },
-        relations: ['patients', 'sessions'],
-      });
+    const doctor = await this.doctorsRepository.findOne({
+      where: { doctor_id: id },
+    });
 
-      if (!doctor) {
-        throw new NotFoundException(`Doctor with ID ${id} not found`);
-      }
-
-      return doctor;
-    } catch (error) {
-      console.error('Error fetching doctor:', error);
-      // Relations ke bina try karein
-      const doctor = await this.doctorsRepository.findOne({
-        where: { doctor_id: id }
-      });
-      
-      if (!doctor) {
-        throw new NotFoundException(`Doctor with ID ${id} not found`);
-      }
-      
-      return doctor;
+    if (!doctor) {
+      throw new NotFoundException(`Doctor with ID ${id} not found`);
     }
+
+    // Active patients count add karein
+    const activePatientsCount = await this.patientsRepository.count({
+      where: {
+        assigned_doctor: { doctor_id: doctor.doctor_id },
+        status: PatientStatus.ACTIVE,
+      },
+    });
+
+    return {
+      ...doctor,
+      active_patients_count: activePatientsCount,
+    };
   }
 
   async update(id: number, updateData: Partial<Doctor>): Promise<Doctor> {

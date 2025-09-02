@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, UseInterceptors, ClassSerializerInterceptor } from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
 import { Doctor } from './entity/doctor.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -8,6 +8,7 @@ import { UserRole } from '../auth/entity/user.entity';
 
 @Controller('doctors')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@UseInterceptors(ClassSerializerInterceptor)
 export class DoctorsController {
   constructor(private readonly doctorsService: DoctorsService) {}
 
