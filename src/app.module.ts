@@ -4,9 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import { CacheModule } from '@nestjs/cache-manager';
 
-import { databaseConfig } from './config/database.config'; // Corrected import
+import { databaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';
 import { DoctorsModule } from './doctors/doctors.module';
@@ -16,16 +15,7 @@ import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
-    // Database configuration with connection pooling
     TypeOrmModule.forRoot(databaseConfig),
-    
-    // Basic in-memory caching (Redis optional for production)
-    CacheModule.register({
-      ttl: parseInt(process.env.CACHE_TTL || '30000'), // 30 seconds default
-      max: parseInt(process.env.CACHE_MAX_ITEMS || '100'), // Maximum cache items
-      isGlobal: true,
-    }),
-    
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',
@@ -35,11 +25,10 @@ import { ReportsModule } from './reports/reports.module';
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
       serveStaticOptions: {
-        // Cache static assets for better performance
-        maxAge: 2 * 60 * 60 * 1000, // 2 hours
+        maxAge: 2 * 60 * 60 * 1000,
         setHeaders: (res, path) => {
           if (path.endsWith('.jpg') || path.endsWith('.png') || path.endsWith('.jpeg')) {
-            res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day for images
+            res.setHeader('Cache-Control', 'public, max-age=86400');
           }
         },
       },

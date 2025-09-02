@@ -14,22 +14,12 @@ const localConfig: TypeOrmModuleOptions = {
   dropSchema: process.env.NODE_ENV === 'development',
   // Connection pooling settings
   extra: {
-    max: parseInt(process.env.DB_MAX_CONNECTIONS || '20'), // Maximum connections in pool
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'), // Close idle connections after 30s
-    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000'), // Return error if connection not established in 2s
-    // SSL configuration
+    max: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000'),
+    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000'),
     ssl: process.env.NODE_ENV === 'production' ? { 
       rejectUnauthorized: false 
     } : false,
-  },
-  // Performance optimizations
-  cache: {
-    type: "redis",
-    options: {
-      host: process.env.REDIS_HOST || "localhost",
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-    },
-    duration: parseInt(process.env.DB_CACHE_DURATION || "30000"), // 30 seconds cache
   },
 };
 
@@ -42,22 +32,12 @@ const productionConfig: TypeOrmModuleOptions = {
   logging: false,
   // Connection pooling settings for production
   extra: {
-    max: 20, // Maximum connections in pool
-    idleTimeoutMillis: 30000, // Close idle connections after 30s
-    connectionTimeoutMillis: 2000, // Return error if connection not established in 2s
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
     ssl: { 
       rejectUnauthorized: false 
     },
-  },
-  // Performance optimizations
-  cache: {
-    type: "redis",
-    options: {
-      host: process.env.REDIS_HOST,
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-      password: process.env.REDIS_PASSWORD,
-    },
-    duration: 30000, // 30 seconds cache
   },
 };
 
