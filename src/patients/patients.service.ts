@@ -26,22 +26,26 @@ export class PatientsService {
     }
   }
 
-  async findAll(userRole: UserRole): Promise<Patient[]> {
+ async findAll(userRole: UserRole): Promise<Patient[]> {
     try {
+      let patients: Patient[];
+      
       if (userRole === UserRole.RECEPTIONIST) {
-        // Receptionist sirf active patients dekh sakta hai
-        return await this.patientsRepository.find({
+        // Receptionist sirf active patients dekh sakta hai with sessions count
+        patients = await this.patientsRepository.find({
           where: { status: PatientStatus.ACTIVE },
-          relations: ['assigned_doctor'],
+          relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
         });
       } else if (userRole === UserRole.OWNER) {
-        // Owner sabhi patients dekh sakta hai
-        return await this.patientsRepository.find({
-          relations: ['assigned_doctor'],
+        // Owner sabhi patients dekh sakta hai with sessions count
+        patients = await this.patientsRepository.find({
+          relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
         });
+      } else {
+        throw new ForbiddenException('Access denied');
       }
       
-      throw new ForbiddenException('Access denied');
+      return patients;
     } catch (error) {
       console.error('Error fetching patients:', error);
       
@@ -74,11 +78,11 @@ export class PatientsService {
     }
   }
 
-  async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
+   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       const patient = await this.patientsRepository.findOne({
         where: { patient_id: id },
-        relations: ['assigned_doctor'],
+        relations: ['assigned_doctor', 'sessions'], // Sessions relation add karein
       });
 
       if (!patient) {

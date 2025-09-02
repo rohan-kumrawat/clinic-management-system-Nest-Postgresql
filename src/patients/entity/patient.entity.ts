@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, AfterLoad } from 'typeorm';
 import { IsNotEmpty, IsEnum } from 'class-validator';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -58,7 +58,7 @@ export class Patient {
   attachment: string;
 
   @ManyToOne(() => Doctor, doctor => doctor.patients)
-  @JoinColumn({ name: 'assigned_doctor_id' }) // ✅ Explicit join column add karein
+  @JoinColumn({ name: 'assigned_doctor_id' })
   assigned_doctor: Doctor;
 
   @Column({
@@ -80,4 +80,16 @@ export class Patient {
 
   @OneToMany(() => Payment, payment => payment.patient)
   payments: Payment[];
+
+   attended_sessions_count: number;
+
+  // Method to calculate attended sessions count after entity is loaded
+  @AfterLoad()
+  calculateAttendedSessions() {
+    if (this.sessions && Array.isArray(this.sessions)) {
+      this.attended_sessions_count = this.sessions.length;
+    } else {
+      this.attended_sessions_count = 0;
+    }
+  }
 }
