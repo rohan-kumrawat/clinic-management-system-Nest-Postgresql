@@ -2,7 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Doctor } from './entity/doctor.entity';
-import { Patient, PatientStatus } from '../patients/entity/patient.entity';
+import { Patient } from '../patients/entity/patient.entity';
+import { PatientStatus } from 'src/common/enums';
 
 @Injectable()
 export class DoctorsService {

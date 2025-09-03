@@ -1,20 +1,21 @@
 // src/patients/patients.service.ts
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, ILike } from 'typeorm';
-import { Patient, PatientStatus } from './entity/patient.entity';
+import { Repository, Like, ILike, SelectQueryBuilder, Brackets } from 'typeorm';
+import { Patient } from './entity/patient.entity';
 import { UserRole } from '../auth/entity/user.entity';
+import { PatientStatus, PaymentStatus, VisitType } from 'src/common/enums';
 
 @Injectable()
 export class PatientsService {
   constructor(
     @InjectRepository(Patient)
     private patientsRepository: Repository<Patient>,
-  ) {}
+  ) { }
 
   async create(patientData: Partial<Patient>): Promise<Patient> {
     try {
-      
+
       if (patientData.assigned_doctor && (patientData.assigned_doctor as any).doctor_id) {
         patientData.assigned_doctor = { doctor_id: (patientData.assigned_doctor as any).doctor_id } as any;
       }
@@ -27,11 +28,11 @@ export class PatientsService {
     }
   }
 
-  
+
   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       let patient: Patient | null;
-      
+
       if (userRole === UserRole.RECEPTIONIST) {
         patient = await this.patientsRepository.findOne({
           where: { patient_id: id, status: PatientStatus.ACTIVE },
@@ -43,11 +44,11 @@ export class PatientsService {
           relations: ['assigned_doctor'],
         });
       }
-      
+
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
-      
+
       const patientsWithStats = await this.addSessionAndPaymentStats([patient]);
       return patientsWithStats[0];
     } catch (error) {
@@ -57,149 +58,10 @@ export class PatientsService {
   }
 
 
-   async findAll(
-    userRole: UserRole, 
-    page: number = 1, 
-    limit: number = 10,
-    name?: string,
-    doctorId?: number
-  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
-    try {
-      let whereClause: any = {};
-      
-      // Add filters if provided
-      if (name) {
-        whereClause.name = ILike(`%${name}%`); // Case-insensitive search
-      }
-      
-      if (doctorId) {
-        whereClause.assigned_doctor = { doctor_id: doctorId };
-      }
-      
-      let patients: Patient[];
-      let total: number;
-      
-      if (userRole === UserRole.RECEPTIONIST) {
-        whereClause.status = PatientStatus.ACTIVE;
-        [patients, total] = await this.patientsRepository.findAndCount({
-          where: whereClause,
-          relations: ['assigned_doctor'],
-          skip: (page - 1) * limit,
-          take: limit,
-        });
-      } else if (userRole === UserRole.OWNER) {
-        [patients, total] = await this.patientsRepository.findAndCount({
-          where: whereClause,
-          relations: ['assigned_doctor'],
-          skip: (page - 1) * limit,
-          take: limit,
-        });
-      } else {
-        throw new ForbiddenException('Access denied');
-      }
-      
-      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
-      return { patients: patientsWithStats, total, page, limit };
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      throw new Error('Failed to fetch patients');
-    }
-  }
-
-  async findAllActive(
-    page: number = 1, 
-    limit: number = 10,
-    name?: string,
-    doctorId?: number
-  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
-    try {
-      let whereClause: any = { status: PatientStatus.ACTIVE };
-      
-      // Add filters if provided
-      if (name) {
-        whereClause.name = ILike(`%${name}%`); // Case-insensitive search
-      }
-      
-      if (doctorId) {
-        whereClause.assigned_doctor = { doctor_id: doctorId };
-      }
-      
-      const [patients, total] = await this.patientsRepository.findAndCount({
-        where: whereClause,
-        relations: ['assigned_doctor'],
-        order: { name: 'ASC' },
-        skip: (page - 1) * limit,
-        take: limit,
-      });
-      
-      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
-      return { patients: patientsWithStats, total, page, limit };
-    } catch (error) {
-      console.error('Error fetching active patients:', error);
-      throw new Error('Failed to fetch active patients');
-    }
-  }
-
-  
-   // Helper method to add session and payment stats
-  private async addSessionAndPaymentStats(patients: Patient[]): Promise<Patient[]> {
-    try {
-      if (patients.length === 0) return patients;
-
-      const patientIds = patients.map(p => p.patient_id);
-      
-      // Get sessions count for each patient using a more reliable query
-      const sessionCounts = await this.patientsRepository.manager.query(`
-        SELECT patient_id, COUNT(session_id) as sessions_count 
-        FROM sessions 
-        WHERE patient_id IN (${patientIds.join(',')})
-        GROUP BY patient_id
-      `);
-      
-      // Get paid amount for each patient using a more reliable query
-      const paidAmounts = await this.patientsRepository.manager.query(`
-        SELECT patient_id, COALESCE(SUM(amount_paid), 0) as paid_amount 
-        FROM payments 
-        WHERE patient_id IN (${patientIds.join(',')})
-        GROUP BY patient_id
-      `);
-
-      // Map the stats to patients and format assigned_doctor
-      return patients.map(patient => {
-        const sessionCount = sessionCounts.find((sc: any) => sc.patient_id === patient.patient_id);
-        const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
-        
-        // Format assigned_doctor to only include id and name
-        const formattedDoctor = patient.assigned_doctor ? {
-          doctor_id: patient.assigned_doctor.doctor_id,
-          name: patient.assigned_doctor.name
-        } : null;
-        
-        // Create a new object with the required properties
-        const patientWithStats = {
-          ...patient,
-          assigned_doctor: formattedDoctor,
-          attended_sessions_count: sessionCount ? parseInt(sessionCount.sessions_count) : 0,
-          paid_amount: paidAmount ? parseFloat(paidAmount.paid_amount) : 0,
-        };
-        
-        return patientWithStats as Patient;
-      });
-    } catch (error) {
-      console.error('Error in addSessionAndPaymentStats:', error);
-      // If there's an error, return patients without stats
-      return patients.map(patient => ({
-        ...patient,
-        attended_sessions_count: 0,
-        paid_amount: 0,
-      } as Patient));
-    }
-  }
-
   async update(id: number, updateData: Partial<Patient>, userRole: UserRole | null = null): Promise<Patient> {
     try {
       await this.findOne(id, userRole);
-      
+
       if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined)) {
         const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
         if (!patient) {
@@ -207,7 +69,7 @@ export class PatientsService {
         }
         const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
         const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
-        
+
         if (newTotalSessions > 0) {
           updateData.per_session_amount = newTotalAmount / newTotalSessions;
         }
@@ -221,25 +83,350 @@ export class PatientsService {
     }
   }
 
+
   async remove(id: number): Promise<{ message: string }> {
     try {
       const result = await this.patientsRepository.delete(id);
-      
+
       if (result.affected === 0) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
-      
+
       return { message: 'Patient deleted successfully' };
     } catch (error) {
       console.error('Error deleting patient:', error);
-      
+
       if (error.message.includes('foreign key constraint')) {
         throw new Error('Cannot delete patient. There are associated sessions or payments.');
       }
-      
+
       throw new Error('Failed to delete patient');
     }
   }
+
+
+
+  /**
+   * Builds a complex query for finding patients with advanced filters
+   */
+  private buildFindQuery(
+    userRole: UserRole,
+    filters: {
+      name?: string;
+      doctorId?: number;
+      status?: PatientStatus;
+      visitType?: VisitType;
+      paymentStatus?: PaymentStatus;
+    },
+  ): SelectQueryBuilder<Patient> {
+    // Start building the query
+    const queryBuilder = this.patientsRepository
+      .createQueryBuilder('patient')
+      .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
+      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
+      .leftJoin(
+        (subQuery) =>
+          subQuery
+            .select('payment.patient_id', 'pid')
+            .addSelect('COALESCE(SUM(payment.amount_paid), 0)', 'total_paid')
+            .from('payments', 'payment')
+            .groupBy('payment.patient_id'),
+        'payment_sum',
+        'payment_sum.pid = patient.patient_id',
+      )
+      .addSelect('COALESCE(payment_sum.total_paid, 0)', 'patient_paid_amount') // Select the paid amount
+      .addSelect('patient.total_amount - COALESCE(payment_sum.total_paid, 0)', 'patient_remaining_amount') // Select the remaining amount
+
+    // Apply role-based filter (Receptionist can only see ACTIVE patients)
+    if (userRole === UserRole.RECEPTIONIST) {
+      queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
+    }
+
+    // Apply other filters dynamically
+    if (filters.name) {
+      queryBuilder.andWhere('patient.name ILIKE :name', { name: `%${filters.name}%` });
+    }
+
+    if (filters.doctorId) {
+      queryBuilder.andWhere('patient.assigned_doctor_id = :doctorId', { doctorId: filters.doctorId });
+    }
+
+    if (filters.status) {
+      queryBuilder.andWhere('patient.status = :status', { status: filters.status });
+    }
+
+    if (filters.visitType) {
+      queryBuilder.andWhere('patient.visit_type = :visitType', { visitType: filters.visitType });
+    }
+
+    // Apply the complex Payment Status filter
+    if (filters.paymentStatus) {
+      switch (filters.paymentStatus) {
+        case PaymentStatus.UNPAID:
+          queryBuilder.andWhere('COALESCE(payment_sum.total_paid, 0) = 0');
+          break;
+        case PaymentStatus.PARTIALLY_PAID:
+          queryBuilder.andWhere(
+            new Brackets((qb) => {
+              qb.where('COALESCE(payment_sum.total_paid, 0) > 0').andWhere(
+                'COALESCE(payment_sum.total_paid, 0) < patient.total_amount',
+              );
+            }),
+          );
+          break;
+        case PaymentStatus.FULLY_PAID:
+          queryBuilder.andWhere('COALESCE(payment_sum.total_paid, 0) >= patient.total_amount');
+          break;
+        default:
+          break;
+      }
+    }
+
+    return queryBuilder;
+  }
+
+
+  async findAll(
+    userRole: UserRole,
+    page: number = 1,
+    limit: number = 10,
+    name?: string,
+    doctorId?: number,
+    status?: PatientStatus,
+    visitType?: VisitType,
+    paymentStatus?: PaymentStatus,
+  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+    try {
+      const queryBuilder = this.buildFindQuery(userRole, {
+        name,
+        doctorId,
+        status, // New filter
+        visitType, // New filter
+        paymentStatus, // New filter
+      });
+
+      // Get the total count before pagination
+      const total = await queryBuilder.getCount();
+
+      // Apply pagination
+      const patients = await queryBuilder
+        .orderBy('patient.name', 'ASC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getRawMany(); // Use getRawMany to get the calculated fields
+
+      // Transform the raw result into the desired Patient object shape.
+      // This is necessary because we used addSelect for calculated fields.
+      const transformedPatients = patients.map((rawPatient) => {
+        const patient = new Patient();
+        patient.patient_id = rawPatient.patient_patient_id;
+        patient.serial_no = rawPatient.patient_serial_no;
+        patient.reg_no = rawPatient.patient_reg_no;
+        patient.name = rawPatient.patient_name;
+        patient.age = rawPatient.patient_age;
+        patient.visit_type = rawPatient.patient_visit_type;
+        patient.referred_dr = rawPatient.patient_referred_dr;
+        patient.mobile = rawPatient.patient_mobile;
+        patient.package_name = rawPatient.patient_package_name;
+        patient.original_amount = parseFloat(rawPatient.patient_original_amount);
+        patient.discount_amount = parseFloat(rawPatient.patient_discount_amount);
+        patient.total_amount = parseFloat(rawPatient.patient_total_amount);
+        patient.total_sessions = rawPatient.patient_total_sessions;
+        patient.per_session_amount = parseFloat(rawPatient.patient_per_session_amount);
+        patient.attachment = rawPatient.patient_attachment;
+        patient.status = rawPatient.patient_status;
+        patient.created_at = rawPatient.patient_created_at;
+        patient.updated_at = rawPatient.patient_updated_at;
+
+        // Handle the joined doctor relation
+        if (rawPatient.doctor_doctor_id) {
+          patient.assigned_doctor = {
+            doctor_id: rawPatient.doctor_doctor_id,
+            name: rawPatient.doctor_name,
+          } as any;
+        }
+
+        // Add the calculated stats
+        patient.attended_sessions_count = rawPatient.patient_attended_sessions_count;
+        patient.paid_amount = parseFloat(rawPatient.patient_paid_amount || '0');
+
+        // Calculate and add the payment_status virtual field
+        const remaining = parseFloat(rawPatient.patient_remaining_amount || '0');
+        if (patient.paid_amount === 0) {
+          patient.payment_status = PaymentStatus.UNPAID;
+        } else if (remaining > 0) {
+          patient.payment_status = PaymentStatus.PARTIALLY_PAID;
+        } else {
+          patient.payment_status = PaymentStatus.FULLY_PAID;
+        }
+
+        return patient;
+      });
+
+      return {
+        patients: transformedPatients,
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+      throw new Error('Failed to fetch patients');
+    }
+  }
+
+  async findAllActive(
+    page: number = 1,
+    limit: number = 10,
+    name?: string,
+    doctorId?: number,
+    visitType?: VisitType, // New filter
+    paymentStatus?: PaymentStatus, // New filter
+  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+    try {
+      // For active patients, we explicitly set the status to ACTIVE in the filters
+      const queryBuilder = this.buildFindQuery(UserRole.OWNER, {
+        name,
+        doctorId,
+        status: PatientStatus.ACTIVE, // Force active status
+        visitType,
+        paymentStatus,
+      });
+
+      // Get the total count before pagination
+      const total = await queryBuilder.getCount();
+
+      // Apply pagination and get the raw results
+      const rawPatients = await queryBuilder
+        .orderBy('patient.name', 'ASC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getRawMany();
+
+      // Transform the raw data into Patient objects with calculated fields
+      const transformedPatients = this.transformRawPatients(rawPatients);
+
+      return {
+        patients: transformedPatients,
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      console.error('Error fetching active patients:', error);
+      throw new Error('Failed to fetch active patients');
+    }
+  }
+
+  /**
+   * Helper method to transform raw SQL results into Patient objects.
+   * Reused by both findAll and findAllActive.
+   */
+  private transformRawPatients(rawPatients: any[]): Patient[] {
+    return rawPatients.map((rawPatient) => {
+      const patient = new Patient();
+      patient.patient_id = rawPatient.patient_patient_id;
+      patient.serial_no = rawPatient.patient_serial_no;
+      patient.reg_no = rawPatient.patient_reg_no;
+      patient.name = rawPatient.patient_name;
+      patient.age = rawPatient.patient_age;
+      patient.visit_type = rawPatient.patient_visit_type;
+      patient.referred_dr = rawPatient.patient_referred_dr;
+      patient.mobile = rawPatient.patient_mobile;
+      patient.package_name = rawPatient.patient_package_name;
+      patient.original_amount = parseFloat(rawPatient.patient_original_amount);
+      patient.discount_amount = parseFloat(rawPatient.patient_discount_amount);
+      patient.total_amount = parseFloat(rawPatient.patient_total_amount);
+      patient.total_sessions = rawPatient.patient_total_sessions;
+      patient.per_session_amount = parseFloat(rawPatient.patient_per_session_amount);
+      patient.attachment = rawPatient.patient_attachment;
+      patient.status = rawPatient.patient_status;
+      patient.created_at = rawPatient.patient_created_at;
+      patient.updated_at = rawPatient.patient_updated_at;
+
+      // Handle the joined doctor relation
+      if (rawPatient.doctor_doctor_id) {
+        patient.assigned_doctor = {
+          doctor_id: rawPatient.doctor_doctor_id,
+          name: rawPatient.doctor_name,
+        } as any;
+      }
+
+      // Add the calculated stats from the query
+      patient.attended_sessions_count = rawPatient.patient_attended_sessions_count;
+      patient.paid_amount = parseFloat(rawPatient.patient_paid_amount || '0');
+
+      // Calculate and add the payment_status virtual field
+      const remaining = parseFloat(rawPatient.patient_remaining_amount || '0');
+      if (patient.paid_amount === 0) {
+        patient.payment_status = PaymentStatus.UNPAID;
+      } else if (remaining > 0) {
+        patient.payment_status = PaymentStatus.PARTIALLY_PAID;
+      } else {
+        patient.payment_status = PaymentStatus.FULLY_PAID;
+      }
+
+      return patient;
+    });
+  }
+
+
+  // Helper method to add session and payment stats
+  private async addSessionAndPaymentStats(patients: Patient[]): Promise<Patient[]> {
+    try {
+      if (patients.length === 0) return patients;
+
+      const patientIds = patients.map(p => p.patient_id);
+
+      // Get sessions count for each patient using a more reliable query
+      const sessionCounts = await this.patientsRepository.manager.query(`
+        SELECT patient_id, COUNT(session_id) as sessions_count 
+        FROM sessions 
+        WHERE patient_id IN (${patientIds.join(',')})
+        GROUP BY patient_id
+      `);
+
+      // Get paid amount for each patient using a more reliable query
+      const paidAmounts = await this.patientsRepository.manager.query(`
+        SELECT patient_id, COALESCE(SUM(amount_paid), 0) as paid_amount 
+        FROM payments 
+        WHERE patient_id IN (${patientIds.join(',')})
+        GROUP BY patient_id
+      `);
+
+      // Map the stats to patients and format assigned_doctor
+      return patients.map(patient => {
+        const sessionCount = sessionCounts.find((sc: any) => sc.patient_id === patient.patient_id);
+        const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
+
+        // Format assigned_doctor to only include id and name
+        const formattedDoctor = patient.assigned_doctor ? {
+          doctor_id: patient.assigned_doctor.doctor_id,
+          name: patient.assigned_doctor.name
+        } : null;
+
+        // Create a new object with the required properties
+        const patientWithStats = {
+          ...patient,
+          assigned_doctor: formattedDoctor,
+          attended_sessions_count: sessionCount ? parseInt(sessionCount.sessions_count) : 0,
+          paid_amount: paidAmount ? parseFloat(paidAmount.paid_amount) : 0,
+        };
+
+        return patientWithStats as Patient;
+      });
+    } catch (error) {
+      console.error('Error in addSessionAndPaymentStats:', error);
+      // If there's an error, return patients without stats
+      return patients.map(patient => ({
+        ...patient,
+        attended_sessions_count: 0,
+        paid_amount: 0,
+      } as Patient));
+    }
+  }
+
+
 
   async getStats(): Promise<{
     total: number;
