@@ -15,7 +15,7 @@ export class Patient {
   @PrimaryGeneratedColumn()
   patient_id: number;
 
-  @Column()
+  @Column({ nullable: true })
   serial_no: number;
 
   @Column()
