@@ -18,7 +18,7 @@ export class Patient {
   @Column({ nullable: true })
   serial_no: number;
 
-  @Column()
+  @Column({ nullable: true })
   reg_no: string;
 
   @Column()
@@ -30,7 +30,7 @@ export class Patient {
   @Column()
   visit_type: string;
 
-  @Column()
+  @Column({ nullable: true })
   referred_dr: string;
 
   @Column()

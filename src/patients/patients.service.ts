@@ -14,9 +14,9 @@ export class PatientsService {
 
   async create(patientData: Partial<Patient>): Promise<Patient> {
     try {
-      if (patientData.total_sessions && patientData.total_amount) {
-        patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
-      }
+      // if (patientData.total_sessions && patientData.total_amount) {
+      //   patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
+      // }
 
       if (patientData.assigned_doctor && (patientData.assigned_doctor as any).doctor_id) {
         patientData.assigned_doctor = { doctor_id: (patientData.assigned_doctor as any).doctor_id } as any;
