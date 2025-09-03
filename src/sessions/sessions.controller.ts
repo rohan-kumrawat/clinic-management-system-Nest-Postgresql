@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { Session } from './entity/session.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -88,5 +88,18 @@ export class SessionsController {
       }
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+
+  //Get sessions by patient ID
+
+  @Get('patient/:patientId')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findByPatientId(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10
+  ): Promise<{ sessions: Session[], total: number }> {
+    return this.sessionsService.findByPatientId(patientId, page, limit);
   }
 }

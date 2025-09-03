@@ -1,7 +1,7 @@
 // src/patients/patients.service.ts
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Like, ILike } from 'typeorm';
 import { Patient, PatientStatus } from './entity/patient.entity';
 import { UserRole } from '../auth/entity/user.entity';
 
@@ -14,10 +14,7 @@ export class PatientsService {
 
   async create(patientData: Partial<Patient>): Promise<Patient> {
     try {
-      // if (patientData.total_sessions && patientData.total_amount) {
-      //   patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
-      // }
-
+      
       if (patientData.assigned_doctor && (patientData.assigned_doctor as any).doctor_id) {
         patientData.assigned_doctor = { doctor_id: (patientData.assigned_doctor as any).doctor_id } as any;
       }
@@ -30,34 +27,11 @@ export class PatientsService {
     }
   }
 
-  async findAll(userRole: UserRole): Promise<Patient[]> {
-    try {
-      let patients: Patient[];
-      
-      if (userRole === UserRole.RECEPTIONIST) {
-        patients = await this.patientsRepository.find({
-          where: { status: PatientStatus.ACTIVE },
-          relations: ['assigned_doctor'],
-        });
-      } else if (userRole === UserRole.OWNER) {
-        patients = await this.patientsRepository.find({
-          relations: ['assigned_doctor'],
-        });
-      } else {
-        throw new ForbiddenException('Access denied');
-      }
-      
-      return await this.addSessionAndPaymentStats(patients);
-    } catch (error) {
-      console.error('Error fetching patients:', error);
-      throw new Error('Failed to fetch patients');
-    }
-  }
-
+  
   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       let patient: Patient | null;
-
+      
       if (userRole === UserRole.RECEPTIONIST) {
         patient = await this.patientsRepository.findOne({
           where: { patient_id: id, status: PatientStatus.ACTIVE },
@@ -69,11 +43,11 @@ export class PatientsService {
           relations: ['assigned_doctor'],
         });
       }
-
+      
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
-
+      
       const patientsWithStats = await this.addSessionAndPaymentStats([patient]);
       return patientsWithStats[0];
     } catch (error) {
@@ -82,22 +56,92 @@ export class PatientsService {
     }
   }
 
-  async findAllActive(): Promise<Patient[]> {
+
+   async findAll(
+    userRole: UserRole, 
+    page: number = 1, 
+    limit: number = 10,
+    name?: string,
+    doctorId?: number
+  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
     try {
-      const patients = await this.patientsRepository.find({
-        where: { status: PatientStatus.ACTIVE },
+      let whereClause: any = {};
+      
+      // Add filters if provided
+      if (name) {
+        whereClause.name = ILike(`%${name}%`); // Case-insensitive search
+      }
+      
+      if (doctorId) {
+        whereClause.assigned_doctor = { doctor_id: doctorId };
+      }
+      
+      let patients: Patient[];
+      let total: number;
+      
+      if (userRole === UserRole.RECEPTIONIST) {
+        whereClause.status = PatientStatus.ACTIVE;
+        [patients, total] = await this.patientsRepository.findAndCount({
+          where: whereClause,
+          relations: ['assigned_doctor'],
+          skip: (page - 1) * limit,
+          take: limit,
+        });
+      } else if (userRole === UserRole.OWNER) {
+        [patients, total] = await this.patientsRepository.findAndCount({
+          where: whereClause,
+          relations: ['assigned_doctor'],
+          skip: (page - 1) * limit,
+          take: limit,
+        });
+      } else {
+        throw new ForbiddenException('Access denied');
+      }
+      
+      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
+      return { patients: patientsWithStats, total, page, limit };
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+      throw new Error('Failed to fetch patients');
+    }
+  }
+
+  async findAllActive(
+    page: number = 1, 
+    limit: number = 10,
+    name?: string,
+    doctorId?: number
+  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+    try {
+      let whereClause: any = { status: PatientStatus.ACTIVE };
+      
+      // Add filters if provided
+      if (name) {
+        whereClause.name = ILike(`%${name}%`); // Case-insensitive search
+      }
+      
+      if (doctorId) {
+        whereClause.assigned_doctor = { doctor_id: doctorId };
+      }
+      
+      const [patients, total] = await this.patientsRepository.findAndCount({
+        where: whereClause,
         relations: ['assigned_doctor'],
         order: { name: 'ASC' },
+        skip: (page - 1) * limit,
+        take: limit,
       });
       
-      return await this.addSessionAndPaymentStats(patients);
+      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
+      return { patients: patientsWithStats, total, page, limit };
     } catch (error) {
       console.error('Error fetching active patients:', error);
       throw new Error('Failed to fetch active patients');
     }
   }
 
-  // Helper method to add session and payment stats
+  
+   // Helper method to add session and payment stats
   private async addSessionAndPaymentStats(patients: Patient[]): Promise<Patient[]> {
     try {
       if (patients.length === 0) return patients;

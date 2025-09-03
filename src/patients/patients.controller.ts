@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe } from '@nestjs/common';
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
@@ -20,7 +20,7 @@ interface AuthenticatedRequest extends Request {
 @Controller('patients')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PatientsController {
-  constructor(private readonly patientsService: PatientsService) {}
+  constructor(private readonly patientsService: PatientsService) { }
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -32,18 +32,42 @@ export class PatientsController {
     }
   }
 
-  @Get('active')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-@UseInterceptors(CacheInterceptor) // Cache add karein
-@CacheKey('active_patients')
-@CacheTTL(30000) // 30 seconds cache
-async findAllActive(): Promise<Patient[]> {
-  try {
-    return await this.patientsService.findAllActive();
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+
+  @Get()
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findAll(
+    @Req() request: AuthenticatedRequest,
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 10,
+    @Query('name') name?: string,
+    @Query('doctorId') doctorId?: number
+  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.findAll(userRole, page, limit, name, doctorId);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
+
+
+  @Get('active')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  @UseInterceptors(CacheInterceptor)
+  @CacheKey('active_patients')
+  @CacheTTL(30000)
+  async findAllActive(
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 10,
+    @Query('name') name?: string,
+    @Query('doctorId') doctorId?: number
+  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+    try {
+      return await this.patientsService.findAllActive(page, limit, name, doctorId);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   @Post(':id/upload')
   @UseInterceptors(FileInterceptor('file'))
@@ -64,16 +88,6 @@ async findAllActive(): Promise<Patient[]> {
     }
   }
 
-  @Get()
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async findAll(@Req() request: AuthenticatedRequest): Promise<Patient[]> {
-    try {
-      const userRole = request.user.role;
-      return await this.patientsService.findAll(userRole);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
 
   @Get('stats')
   @Roles(UserRole.OWNER)
@@ -102,7 +116,7 @@ async findAllActive(): Promise<Patient[]> {
   @Put(':id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async update(
-    @Param('id') id: string, 
+    @Param('id') id: string,
     @Body() updateData: Partial<Patient>,
     @Req() request: AuthenticatedRequest
   ): Promise<Patient> {

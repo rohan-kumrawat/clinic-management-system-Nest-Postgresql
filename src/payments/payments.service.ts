@@ -298,4 +298,22 @@ export class PaymentsService {
       throw new InternalServerErrorException('Failed to delete payment.');
     }
   }
+
+  // Find Payments by Patient ID with pagination
+  
+   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: Payment[], total: number }> {
+    const [payments, total] = await this.paymentsRepository.findAndCount({
+      where: { patient: { patient_id: patientId } },
+      relations: ['patient', 'session', 'created_by'],
+      order: { payment_date: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    if (!payments || payments.length === 0) {
+      throw new NotFoundException(`No payments found for patient with ID ${patientId}`);
+    }
+
+    return { payments, total };
+  }
 }

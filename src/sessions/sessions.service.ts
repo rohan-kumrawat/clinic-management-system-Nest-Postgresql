@@ -114,4 +114,22 @@ export class SessionsService {
       throw new Error('Failed to delete session');
     }
   }
+
+   //Find sessions by patient ID with pagination
+   
+  async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ sessions: Session[], total: number }> {
+    const [sessions, total] = await this.sessionsRepository.findAndCount({
+      where: { patient: { patient_id: patientId } },
+      relations: ['patient', 'doctor', 'created_by'],
+      order: { session_date: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    if (!sessions || sessions.length === 0) {
+      throw new NotFoundException(`No sessions found for patient with ID ${patientId}`);
+    }
+
+    return { sessions, total };
+  }
 }

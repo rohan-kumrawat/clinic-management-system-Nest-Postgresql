@@ -115,6 +115,18 @@ export class PaymentsController {
     return this.paymentsService.remove(id);
   }
 
+  // Get payments by patient ID
+  
+  @Get('patient/:patientId')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findByPatientId(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10
+  ): Promise<{ payments: Payment[], total: number }> {
+    return this.paymentsService.findByPatientId(patientId, page, limit);
+  }
+
 
   @Get('debug/test')
 @Roles(UserRole.OWNER)
@@ -141,4 +153,6 @@ async debugTest(): Promise<any> {
     };
   }
 }
+
+
 }
