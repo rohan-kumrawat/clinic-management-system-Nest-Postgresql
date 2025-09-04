@@ -283,11 +283,11 @@ export class PatientsService {
   paymentStatus?: PaymentStatus,
 ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
   try {
-    // Build query with all filters including status=active
+    // Use the buildFindQuery method with all filters including status=ACTIVE
     const queryBuilder = this.buildFindQuery(UserRole.OWNER, {
       name,
       doctorId,
-      status: PatientStatus.ACTIVE, // Force active status
+      status: PatientStatus.ACTIVE, // Explicitly set status to ACTIVE
       visitType,
       paymentStatus,
     });
@@ -302,7 +302,7 @@ export class PatientsService {
       .take(limit)
       .getRawMany();
 
-    // Transform the raw result (same as in findAll)
+    // Transform the raw result
     const transformedPatients = patients.map((rawPatient) => {
       const patient = new Patient();
       patient.patient_id = rawPatient.patient_patient_id;
