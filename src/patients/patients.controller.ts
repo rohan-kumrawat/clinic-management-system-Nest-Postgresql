@@ -68,33 +68,32 @@ export class PatientsController {
 
 
   @Get('active')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  @UseInterceptors(CacheInterceptor)
-  @CacheKey('active_patients')
-  @CacheTTL(30000)
-  async findAllActive(
-    @Query('page', ParseIntPipe) page: number = 1,
-    @Query('limit', ParseIntPipe) limit: number = 10,
-    @Query('name') name?: string,
-    @Query('doctorId') doctorId?: number,
-    // New Query Parameters for active endpoint
-    @Query('visitType') visitType?: VisitType,
-    @Query('paymentStatus') paymentStatus?: PaymentStatus,
-  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
-    try {
-      // Validate enum values if provided
-      if (visitType && !Object.values(VisitType).includes(visitType)) {
-        throw new BadRequestException('Invalid visitType value');
-      }
-      if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
-        throw new BadRequestException('Invalid paymentStatus value');
-      }
-
-      return await this.patientsService.findAllActive(page, limit, name, doctorId, visitType, paymentStatus);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+@UseInterceptors(CacheInterceptor)
+@CacheKey('active_patients')
+@CacheTTL(30000)
+async findAllActive(
+  @Query('page', ParseIntPipe) page: number = 1,
+  @Query('limit', ParseIntPipe) limit: number = 10,
+  @Query('name') name?: string,
+  @Query('doctorId') doctorId?: number,
+  @Query('visitType') visitType?: VisitType,
+  @Query('paymentStatus') paymentStatus?: PaymentStatus,
+): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  try {
+    // Validate enum values if provided
+    if (visitType && !Object.values(VisitType).includes(visitType)) {
+      throw new BadRequestException('Invalid visitType value');
     }
+    if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
+      throw new BadRequestException('Invalid paymentStatus value');
+    }
+
+    return await this.patientsService.findAllActive(page, limit, name, doctorId, visitType, paymentStatus);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
   }
+}
 
   @Post(':id/upload')
   @UseInterceptors(FileInterceptor('file'))
