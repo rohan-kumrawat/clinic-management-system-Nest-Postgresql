@@ -283,6 +283,9 @@ export class PatientsService {
   paymentStatus?: PaymentStatus,
 ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
   try {
+
+    console.log('Filters received:', { name, doctorId, visitType, paymentStatus });
+
     // Use the buildFindQuery method with all filters including status=ACTIVE
     const queryBuilder = this.buildFindQuery(UserRole.OWNER, {
       name,
