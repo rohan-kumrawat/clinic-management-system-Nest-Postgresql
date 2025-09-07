@@ -454,7 +454,8 @@ export class PatientsService {
       const queryBuilder = this.patientsRepository
         .createQueryBuilder('patient')
         .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
-        .leftJoinAndSelect('patient.payments', 'payments')
+        .addSelect(['doctor.doctor_id', 'doctor.name']) 
+        // .leftJoinAndSelect('patient.payments', 'payments')
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
         .where('patient.status = :status', { status: PatientStatus.ACTIVE });
 
