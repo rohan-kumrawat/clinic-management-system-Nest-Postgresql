@@ -334,7 +334,7 @@ export class PatientsService {
     // Start building the query
     const queryBuilder = this.patientsRepository
       .createQueryBuilder('patient')
-      .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
+      .leftJoin('patient.assigned_doctor', 'doctor')
       .addSelect(['doctor.doctor_id', 'doctor.name']) // Select only necessary fields
       // .leftJoinAndSelect('patient.payments', 'payments')
       .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
@@ -453,7 +453,7 @@ export class PatientsService {
       // For active patients, we explicitly set the status to ACTIVE
       const queryBuilder = this.patientsRepository
         .createQueryBuilder('patient')
-        .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
+        .leftJoin('patient.assigned_doctor', 'doctor')
         .addSelect(['doctor.doctor_id', 'doctor.name']) 
         // .leftJoinAndSelect('patient.payments', 'payments')
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
