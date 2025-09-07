@@ -129,19 +129,19 @@ export class SessionsService {
   try {
     const query = this.sessionsRepository
       .createQueryBuilder('session')
-      .select(['session']) // all session fields
+      .select(['session']) // include all session fields
       .leftJoin('session.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
+      .addSelect(['patient.id', 'patient.name']) // ✅ use "id" not "patient_id"
       .leftJoin('session.doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .addSelect(['doctor.id', 'doctor.name'])   // ✅ use "id"
       .leftJoin('session.created_by', 'created_by')
-      .addSelect(['created_by.user_id', 'created_by.name'])
-      .where('patient.patient_id = :patientId', { patientId })
+      .addSelect(['created_by.id', 'created_by.name']) // ✅ use "id"
+      .where('patient.id = :patientId', { patientId })
       .orderBy('session.session_date', 'DESC')
       .skip((Number(page) - 1) * Number(limit))
       .take(Number(limit));
 
-    // Debugging SQL
+    // Debug query print
     query.printSql();
 
     const [sessions, total] = await query.getManyAndCount();
