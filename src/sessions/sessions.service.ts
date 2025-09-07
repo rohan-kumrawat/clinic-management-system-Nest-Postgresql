@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Session } from './entity/session.entity';
@@ -126,28 +126,37 @@ export class SessionsService {
   page: number = 1,
   limit: number = 10
 ): Promise<{ sessions: Session[]; total: number }> {
-  const query = this.sessionsRepository
-    .createQueryBuilder('session')
-    .select(['session']) // select all session fields
-    .leftJoin('session.patient', 'patient')
-    .addSelect(['patient.patient_id', 'patient.name'])
-    .leftJoin('session.doctor', 'doctor')
-    .addSelect(['doctor.doctor_id', 'doctor.name'])
-    .leftJoin('session.created_by', 'created_by')
-    .addSelect(['created_by.user_id', 'created_by.name'])
-    .where('patient.patient_id = :patientId', { patientId })
-    .orderBy('session.session_date', 'DESC')
-    .skip((page - 1) * limit)
-    .take(limit);
+  try {
+    const query = this.sessionsRepository
+      .createQueryBuilder('session')
+      .select(['session']) // all session fields
+      .leftJoin('session.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('session.doctor', 'doctor')
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .leftJoin('session.created_by', 'created_by')
+      .addSelect(['created_by.user_id', 'created_by.name'])
+      .where('patient.patient_id = :patientId', { patientId })
+      .orderBy('session.session_date', 'DESC')
+      .skip((Number(page) - 1) * Number(limit))
+      .take(Number(limit));
 
-  const [sessions, total] = await query.getManyAndCount();
+    // Debugging SQL
+    query.printSql();
 
-  if (!sessions || sessions.length === 0) {
-    throw new NotFoundException(
-      `No sessions found for patient with ID ${patientId}`
-    );
+    const [sessions, total] = await query.getManyAndCount();
+
+    if (!sessions || sessions.length === 0) {
+      throw new NotFoundException(
+        `No sessions found for patient with ID ${patientId}`
+      );
+    }
+
+    return { sessions, total };
+  } catch (error) {
+    console.error('Error fetching sessions by patientId:', error);
+    throw new InternalServerErrorException('Failed to fetch sessions');
   }
-
-  return { sessions, total };
 }
+
 }
