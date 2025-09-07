@@ -335,7 +335,8 @@ export class PatientsService {
     const queryBuilder = this.patientsRepository
       .createQueryBuilder('patient')
       .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
-      .leftJoinAndSelect('patient.payments', 'payments')
+      .addSelect(['doctor.doctor_id', 'doctor.name']) // Select only necessary fields
+      // .leftJoinAndSelect('patient.payments', 'payments')
       .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
 
     // Apply role-based filter (Receptionist can only see ACTIVE patients)
