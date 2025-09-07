@@ -39,22 +39,20 @@ export class SessionsService {
   }
 
   async findAll(): Promise<Session[]> {
-    try {
-      return await this.sessionsRepository
+  try {
+    return await this.sessionsRepository
       .createQueryBuilder('session')
+      .select(['session']) // ⚡ sabhi session ke fields lo
       .leftJoin('session.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
+      .addSelect(['patient.patient_id', 'patient.name']) // only required fields
       .leftJoin('session.doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name'])
-      .leftJoin('session.created_by', 'user')
-      .addSelect(['user.id', 'user.username'])
-      .orderBy('session.session_date', 'DESC')
+      .addSelect(['doctor.doctor_id', 'doctor.name'])   // only required fields
       .getMany();
-    } catch (error) {
-      console.error('Error fetching sessions:', error);
-      throw new Error('Failed to fetch sessions');
-    }
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    throw new Error('Failed to fetch sessions');
   }
+}
 
   async findOne(id: number): Promise<Session> {
     try {
