@@ -228,6 +228,7 @@ export class PatientsService {
     }
   }
 
+  
   async findAllActive(
     page: number = 1,
     limit: number = 10,
@@ -238,13 +239,25 @@ export class PatientsService {
   ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
     try {
       // For active patients, we explicitly set the status to ACTIVE
-      const queryBuilder = this.buildFindQuery(UserRole.OWNER, {
-        name,
-        doctorId,
-        status: PatientStatus.ACTIVE, // Force active status
-        visitType,
-        paymentStatus,
-      });
+      const queryBuilder = this.patientsRepository
+        .createQueryBuilder('patient')
+        .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
+        .leftJoinAndSelect('patient.payments', 'payments')
+        .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
+        .where('patient.status = :status', { status: PatientStatus.ACTIVE });
+
+      // Apply other filters dynamically
+      if (name) {
+        queryBuilder.andWhere('patient.name ILIKE :name', { name: `%${name}%` });
+      }
+
+      if (doctorId) {
+        queryBuilder.andWhere('patient.assigned_doctor_id = :doctorId', { doctorId });
+      }
+
+      if (visitType) {
+        queryBuilder.andWhere('patient.visit_type = :visitType', { visitType });
+      }
 
       // Get the total count before pagination
       const total = await queryBuilder.getCount();
