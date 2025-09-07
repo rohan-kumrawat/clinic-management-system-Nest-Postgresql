@@ -40,13 +40,19 @@ export class SessionsService {
 
   async findAll(): Promise<Session[]> {
     try {
-      return await this.sessionsRepository.find({
-        relations: ['patient', 'doctor'],
-      });
+      return await this.sessionsRepository
+      .createQueryBuilder('session')
+      .leftJoin('session.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('session.doctor', 'doctor')
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .leftJoin('session.created_by', 'user')
+      .addSelect(['user.id', 'user.username'])
+      .orderBy('session.session_date', 'DESC')
+      .getMany();
     } catch (error) {
       console.error('Error fetching sessions:', error);
-      // Fallback: relations ke bina try karein
-      return await this.sessionsRepository.find();
+      throw new Error('Failed to fetch sessions');
     }
   }
 
