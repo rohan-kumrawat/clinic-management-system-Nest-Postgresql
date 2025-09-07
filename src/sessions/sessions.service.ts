@@ -121,19 +121,33 @@ export class SessionsService {
 
    //Find sessions by patient ID with pagination
    
-  async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ sessions: Session[], total: number }> {
-    const [sessions, total] = await this.sessionsRepository.findAndCount({
-      where: { patient: { patient_id: patientId } },
-      relations: ['patient', 'doctor', 'created_by'],
-      order: { session_date: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  async findByPatientId(
+  patientId: number,
+  page: number = 1,
+  limit: number = 10
+): Promise<{ sessions: Session[]; total: number }> {
+  const query = this.sessionsRepository
+    .createQueryBuilder('session')
+    .select(['session']) // select all session fields
+    .leftJoin('session.patient', 'patient')
+    .addSelect(['patient.patient_id', 'patient.name'])
+    .leftJoin('session.doctor', 'doctor')
+    .addSelect(['doctor.doctor_id', 'doctor.name'])
+    .leftJoin('session.created_by', 'created_by')
+    .addSelect(['created_by.user_id', 'created_by.name'])
+    .where('patient.patient_id = :patientId', { patientId })
+    .orderBy('session.session_date', 'DESC')
+    .skip((page - 1) * limit)
+    .take(limit);
 
-    if (!sessions || sessions.length === 0) {
-      throw new NotFoundException(`No sessions found for patient with ID ${patientId}`);
-    }
+  const [sessions, total] = await query.getManyAndCount();
 
-    return { sessions, total };
+  if (!sessions || sessions.length === 0) {
+    throw new NotFoundException(
+      `No sessions found for patient with ID ${patientId}`
+    );
   }
+
+  return { sessions, total };
+}
 }
