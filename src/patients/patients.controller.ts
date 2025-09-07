@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe, BadRequestException, DefaultValuePipe } from '@nestjs/common';
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
@@ -67,29 +67,61 @@ export class PatientsController {
   }
 
 
+  // @Get('active')
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // @UseInterceptors(CacheInterceptor)
+  // @CacheKey('active_patients')
+  // @CacheTTL(30000)
+  // async findAllActive(
+  //   @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+  //   @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  //   @Query('name') name?: string,
+  //   @Query('doctorId', ParseIntPipe) doctorId?: number,
+  //   @Query('visitType') visitType?: VisitType,
+  //   @Query('paymentStatus') paymentStatus?: PaymentStatus,
+  // ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  //   try {
+  //   // Validate enum values if provided
+  //     if (visitType && !Object.values(VisitType).includes(visitType)) {
+  //       throw new BadRequestException('Invalid visitType value');
+  //     }
+  //     if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
+  //     throw new BadRequestException('Invalid paymentStatus value');
+  //     }
+
+  //     return await this.patientsService.findAllActive(page, limit, name, doctorId, visitType, paymentStatus);
+  //   } catch (error) {
+  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  //   }
+  // }
+
+
   @Get('active')
 @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-@UseInterceptors(CacheInterceptor)
-@CacheKey('active_patients')
-@CacheTTL(30000)
 async findAllActive(
-  @Query('page', ParseIntPipe) page: number = 1,
-  @Query('limit', ParseIntPipe) limit: number = 10,
+  @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+  @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
   @Query('name') name?: string,
-  @Query('doctorId') doctorId?: number,
-  @Query('visitType') visitType?: VisitType,
+  @Query('doctorId', ParseIntPipe) doctorId?: number,
+  @Query('visitType') visitType?: string, // Change to string temporarily
   @Query('paymentStatus') paymentStatus?: PaymentStatus,
 ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
   try {
-    // Validate enum values if provided
-    if (visitType && !Object.values(VisitType).includes(visitType)) {
-      throw new BadRequestException('Invalid visitType value');
+    // Convert string to VisitType enum if provided
+    let visitTypeEnum: VisitType | undefined;
+    if (visitType) {
+      if (!Object.values(VisitType).includes(visitType as VisitType)) {
+        throw new BadRequestException('Invalid visitType value');
+      }
+      visitTypeEnum = visitType as VisitType;
     }
+
+    // Validate paymentStatus if provided
     if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
       throw new BadRequestException('Invalid paymentStatus value');
     }
 
-    return await this.patientsService.findAllActive(page, limit, name, doctorId, visitType, paymentStatus);
+    return await this.patientsService.findAllActive(page, limit, name, doctorId, visitTypeEnum, paymentStatus);
   } catch (error) {
     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
   }

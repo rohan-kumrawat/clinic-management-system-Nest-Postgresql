@@ -118,24 +118,13 @@ export class PatientsService {
       visitType?: VisitType;
       paymentStatus?: PaymentStatus;
     },
-  ): SelectQueryBuilder<Patient> {
+  ) {
     // Start building the query
     const queryBuilder = this.patientsRepository
       .createQueryBuilder('patient')
       .leftJoinAndSelect('patient.assigned_doctor', 'doctor')
-      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
-      .leftJoin(
-        (subQuery) =>
-          subQuery
-            .select('payment.patient_id', 'pid')
-            .addSelect('COALESCE(SUM(payment.amount_paid), 0)', 'total_paid')
-            .from('payments', 'payment')
-            .groupBy('payment.patient_id'),
-        'payment_sum',
-        'payment_sum.pid = patient.patient_id',
-      )
-      .addSelect('COALESCE(payment_sum.total_paid, 0)', 'patient_paid_amount') // Select the paid amount
-      .addSelect('patient.total_amount - COALESCE(payment_sum.total_paid, 0)', 'patient_remaining_amount') // Select the remaining amount
+      .leftJoinAndSelect('patient.payments', 'payments')
+      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
 
     // Apply role-based filter (Receptionist can only see ACTIVE patients)
     if (userRole === UserRole.RECEPTIONIST) {
@@ -159,120 +148,85 @@ export class PatientsService {
       queryBuilder.andWhere('patient.visit_type = :visitType', { visitType: filters.visitType });
     }
 
-    // Apply the complex Payment Status filter
-    if (filters.paymentStatus) {
-      switch (filters.paymentStatus) {
-        case PaymentStatus.UNPAID:
-          queryBuilder.andWhere('COALESCE(payment_sum.total_paid, 0) = 0');
-          break;
-        case PaymentStatus.PARTIALLY_PAID:
-          queryBuilder.andWhere(
-            new Brackets((qb) => {
-              qb.where('COALESCE(payment_sum.total_paid, 0) > 0').andWhere(
-                'COALESCE(payment_sum.total_paid, 0) < patient.total_amount',
-              );
-            }),
-          );
-          break;
-        case PaymentStatus.FULLY_PAID:
-          queryBuilder.andWhere('COALESCE(payment_sum.total_paid, 0) >= patient.total_amount');
-          break;
-        default:
-          break;
-      }
-    }
-
     return queryBuilder;
   }
 
-
   async findAll(
-  userRole: UserRole,
-  page: number = 1,
-  limit: number = 10,
-  name?: string,
-  doctorId?: number,
-  status?: PatientStatus,
-  visitType?: VisitType,
-  paymentStatus?: PaymentStatus,
-): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
-  try {
-    const queryBuilder = this.buildFindQuery(userRole, {
-      name,
-      doctorId,
-      status,
-      visitType,
-      paymentStatus,
-    });
+    userRole: UserRole,
+    page: number = 1,
+    limit: number = 10,
+    name?: string,
+    doctorId?: number,
+    status?: PatientStatus,
+    visitType?: VisitType,
+    paymentStatus?: PaymentStatus,
+  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+    try {
+      const queryBuilder = this.buildFindQuery(userRole, {
+        name,
+        doctorId,
+        status,
+        visitType,
+        paymentStatus,
+      });
 
-    // Get the total count before pagination
-    const total = await queryBuilder.getCount();
+      // Get the total count before pagination
+      const total = await queryBuilder.getCount();
 
-    // Apply pagination
-    const patients = await queryBuilder
-      .orderBy('patient.name', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getRawMany();
+      // Apply pagination
+      const patients = await queryBuilder
+        .orderBy('patient.name', 'ASC')
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getMany();
 
-    // Transform the raw result into the desired Patient object shape.
-    const transformedPatients = patients.map((rawPatient) => {
-      const patient = new Patient();
-      patient.patient_id = rawPatient.patient_patient_id;
-      patient.serial_no = rawPatient.patient_serial_no;
-      patient.reg_no = rawPatient.patient_reg_no;
-      patient.name = rawPatient.patient_name;
-      patient.age = rawPatient.patient_age;
-      patient.visit_type = rawPatient.patient_visit_type;
-      patient.referred_dr = rawPatient.patient_referred_dr;
-      patient.mobile = rawPatient.patient_mobile;
-      patient.package_name = rawPatient.patient_package_name;
-      patient.original_amount = parseFloat(rawPatient.patient_original_amount);
-      patient.discount_amount = parseFloat(rawPatient.patient_discount_amount);
-      patient.total_amount = parseFloat(rawPatient.patient_total_amount);
-      patient.total_sessions = rawPatient.patient_total_sessions;
-      patient.per_session_amount = parseFloat(rawPatient.patient_per_session_amount);
-      patient.attachment = rawPatient.patient_attachment;
-      patient.status = rawPatient.patient_status;
-      patient.created_at = rawPatient.patient_created_at;
-      patient.updated_at = rawPatient.patient_updated_at;
+      // Calculate payment stats for each patient
+      const patientsWithStats = await Promise.all(
+        patients.map(async (patient) => {
+          // Calculate paid amount
+          const paidResult = await this.patientsRepository.manager.query(
+            `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
+             FROM payments 
+             WHERE patient_id = $1`,
+            [patient.patient_id]
+          );
+          
+          const paidAmount = parseFloat(paidResult[0].total_paid);
+          patient.paid_amount = paidAmount;
 
-      // Handle the joined doctor relation
-      if (rawPatient.doctor_doctor_id) {
-        patient.assigned_doctor = {
-          doctor_id: rawPatient.doctor_doctor_id,
-          name: rawPatient.doctor_name,
-        } as any;
+          // Calculate payment status
+          const remaining = patient.total_amount - paidAmount;
+          if (paidAmount === 0) {
+            patient.payment_status = PaymentStatus.UNPAID;
+          } else if (remaining > 0) {
+            patient.payment_status = PaymentStatus.PARTIALLY_PAID;
+          } else {
+            patient.payment_status = PaymentStatus.FULLY_PAID;
+          }
+
+          return patient;
+        })
+      );
+
+      // Apply payment status filter if specified
+      let filteredPatients = patientsWithStats;
+      if (paymentStatus) {
+        filteredPatients = patientsWithStats.filter(patient => 
+          patient.payment_status === paymentStatus
+        );
       }
 
-      // Add the calculated stats
-      patient.attended_sessions_count = rawPatient.patient_attended_sessions_count;
-      patient.paid_amount = parseFloat(rawPatient.patient_paid_amount || '0');
-
-      // Calculate and add the payment_status virtual field
-      const remaining = parseFloat(rawPatient.patient_remaining_amount || '0');
-      if (patient.paid_amount === 0) {
-        patient.payment_status = PaymentStatus.UNPAID;
-      } else if (remaining > 0) {
-        patient.payment_status = PaymentStatus.PARTIALLY_PAID;
-      } else {
-        patient.payment_status = PaymentStatus.FULLY_PAID;
-      }
-
-      return patient;
-    });
-
-    return {
-      patients: transformedPatients,
-      total,
-      page,
-      limit,
-    };
-  } catch (error) {
-    console.error('Error fetching patients:', error);
-    throw new Error('Failed to fetch patients');
+      return {
+        patients: filteredPatients,
+        total,
+        page,
+        limit,
+      };
+    } catch (error) {
+      console.error('Error fetching patients:', error);
+      throw new Error('Failed to fetch patients');
+    }
   }
-}
 
   async findAllActive(
   page: number = 1,
