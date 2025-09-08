@@ -143,65 +143,96 @@ export class PaymentsService {
     }
   }
 
-  async findAll(): Promise<Payment[]> {
-    try {
-      return await this.paymentsRepository.find({
-        relations: ['patient', 'session', 'created_by'],
-        order: { payment_date: 'DESC', created_at: 'DESC' }
-      });
-    } catch (error) {
-      this.logger.error(`Failed to retrieve payments: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to retrieve payments.');
-    }
+  async findAll(): Promise<any[]> {
+  try {
+    const payments = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .select([
+        'payment.payment_id',
+        'payment.amount_paid',
+        'payment.payment_mode',
+        'payment.remarks',
+        'payment.payment_date',
+        'payment.remaining_amount',
+        'payment.created_at',
+      ])
+      .leftJoin('payment.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('payment.session', 'session')
+      .addSelect(['session.session_id', 'session.session_date'])
+      .leftJoin('payment.created_by', 'created_by')
+      .addSelect(['created_by.id', 'created_by.name'])
+      .orderBy('payment.payment_date', 'DESC')
+      .getMany();
+
+    return payments;
+  } catch (error) {
+    this.logger.error(`Failed to retrieve payments: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Failed to retrieve payments.');
   }
+}
 
-  async findOne(id: number): Promise<Payment> {
-    try {
-      const payment = await this.paymentsRepository.findOne({
-        where: { payment_id: id },
-        relations: ['patient', 'session', 'created_by'],
-      });
+  async findOne(id: number): Promise<any> {
+  try {
+    const payment = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .select([
+        'payment.payment_id',
+        'payment.amount_paid',
+        'payment.payment_mode',
+        'payment.remarks',
+        'payment.payment_date',
+        'payment.remaining_amount',
+        'payment.created_at',
+      ])
+      .leftJoin('payment.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('payment.session', 'session')
+      .addSelect(['session.session_id', 'session.session_date'])
+      .leftJoin('payment.created_by', 'created_by')
+      .addSelect(['created_by.id', 'created_by.name'])
+      .where('payment.payment_id = :id', { id })
+      .getOne();
 
-      if (!payment) {
-        throw new NotFoundException(`Payment with ID ${id} not found`);
-      }
-
-      return payment;
-    } catch (error) {
-      this.logger.error(`Failed to retrieve payment #${id}: ${error.message}`, error.stack);
-      
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      
-      throw new InternalServerErrorException('Failed to retrieve payment.');
+    if (!payment) {
+      throw new NotFoundException(`Payment with ID ${id} not found`);
     }
+    return payment;
+  } catch (error) {
+    this.logger.error(`Failed to retrieve payment #${id}: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Failed to retrieve payment.');
   }
+}
 
-  async findByDateRange(startDate: Date, endDate: Date): Promise<Payment[]> {
-    try {
-      // Validate dates
-      if (startDate > endDate) {
-        throw new BadRequestException('Start date cannot be after end date.');
-      }
+ async findByDateRange(startDate: Date, endDate: Date): Promise<any[]> {
+  try {
+    const payments = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .select([
+        'payment.payment_id',
+        'payment.amount_paid',
+        'payment.payment_mode',
+        'payment.remarks',
+        'payment.payment_date',
+        'payment.remaining_amount',
+        'payment.created_at',
+      ])
+      .leftJoin('payment.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('payment.session', 'session')
+      .addSelect(['session.session_id', 'session.session_date'])
+      .leftJoin('payment.created_by', 'created_by')
+      .addSelect(['created_by.id', 'created_by.name'])
+      .where('payment.payment_date BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .orderBy('payment.payment_date', 'DESC')
+      .getMany();
 
-      return await this.paymentsRepository.find({
-        where: {
-          payment_date: Between(startDate, endDate),
-        },
-        relations: ['patient', 'session', 'created_by'],
-        order: { payment_date: 'DESC' }
-      });
-    } catch (error) {
-      this.logger.error(`Failed to retrieve payments by date range: ${error.message}`, error.stack);
-      
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      
-      throw new InternalServerErrorException('Failed to retrieve payments by date range.');
-    }
+    return payments;
+  } catch (error) {
+    this.logger.error(`Failed to retrieve payments by date range: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Failed to retrieve payments by date range.');
   }
+}
 
   async getRevenueStats(startDate: Date, endDate: Date): Promise<{
     totalRevenue: number;
@@ -301,19 +332,40 @@ export class PaymentsService {
 
   // Find Payments by Patient ID with pagination
   
-   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: Payment[], total: number }> {
-    const [payments, total] = await this.paymentsRepository.findAndCount({
-      where: { patient: { patient_id: patientId } },
-      relations: ['patient', 'session', 'created_by'],
-      order: { payment_date: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: any[], total: number }> {
+  try {
+    const query = this.paymentsRepository
+      .createQueryBuilder('payment')
+      .select([
+        'payment.payment_id',
+        'payment.amount_paid',
+        'payment.payment_mode',
+        'payment.remarks',
+        'payment.payment_date',
+        'payment.remaining_amount',
+        'payment.created_at',
+      ])
+      .leftJoin('payment.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('payment.session', 'session')
+      .addSelect(['session.session_id', 'session.session_date'])
+      .leftJoin('payment.created_by', 'created_by')
+      .addSelect(['created_by.id', 'created_by.name'])
+      .where('patient.patient_id = :patientId', { patientId })
+      .orderBy('payment.payment_date', 'DESC')
+      .skip((Number(page) - 1) * Number(limit))
+      .take(Number(limit));
+
+    const [payments, total] = await query.getManyAndCount();
 
     if (!payments || payments.length === 0) {
       throw new NotFoundException(`No payments found for patient with ID ${patientId}`);
     }
 
     return { payments, total };
+  } catch (error) {
+    this.logger.error(`Failed to fetch payments for patient ${patientId}: ${error.message}`, error.stack);
+    throw new InternalServerErrorException('Failed to fetch payments.');
   }
+}
 }
