@@ -38,40 +38,65 @@ export class SessionsService {
     }
   }
 
-  async findAll(): Promise<Session[]> {
+  async findAll(): Promise<any[]> {
   try {
-    return await this.sessionsRepository
+    const sessions = await this.sessionsRepository
       .createQueryBuilder('session')
-      .select(['session']) // ⚡ sabhi session ke fields lo
+      .select([
+        'session.session_id',
+        'session.session_date',
+        'session.remarks',
+        'session.created_at',
+      ])
       .leftJoin('session.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name']) // only required fields
+      .addSelect(['patient.patient_id', 'patient.name'])
       .leftJoin('session.doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name'])   // only required fields
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .leftJoin('session.created_by', 'createdBy')
+      .addSelect(['createdBy.id', 'createdBy.name'])
       .getMany();
+
+    return sessions.map(s => ({
+      session_id: s.session_id,
+      session_date: s.session_date,
+      remarks: s.remarks,
+      created_at: s.created_at,
+      patient: s.patient ? { patient_id: s.patient.patient_id, name: s.patient.name } : null,
+      doctor: s.doctor ? { doctor_id: s.doctor.doctor_id, name: s.doctor.name } : null,
+      created_by: s.created_by ? { id: s.created_by.id, name: s.created_by.name } : null,
+    }));
   } catch (error) {
     console.error('Error fetching sessions:', error);
     throw new Error('Failed to fetch sessions');
   }
 }
 
-  async findOne(id: number): Promise<Session> {
+  async findOne(id: number): Promise<any> {
   try {
     const session = await this.sessionsRepository.findOne({
       where: { session_id: id },
-      relations: ['patient', 'doctor', 'created_by'], // 👈 add this
+      relations: ['patient', 'doctor', 'created_by'],
     });
 
     if (!session) {
       throw new NotFoundException(`Session with ID ${id} not found`);
     }
 
-    // केवल आवश्यक fields return करने के लिए transform कर सकते हैं
     return {
-      ...session,
+      session_id: session.session_id,
+      session_date: session.session_date,
+      remarks: session.remarks,
+      created_at: session.created_at,
+      patient: session.patient
+        ? { patient_id: session.patient.patient_id, name: session.patient.name }
+        : null,
+      doctor: session.doctor
+        ? { doctor_id: session.doctor.doctor_id, name: session.doctor.name }
+        : null,
       created_by: session.created_by
         ? { id: session.created_by.id, name: session.created_by.name }
         : null,
-    } as any;
+    };
   } catch (error) {
     console.error('Error fetching session:', error);
     throw new InternalServerErrorException('Failed to fetch session');
@@ -123,34 +148,41 @@ export class SessionsService {
   patientId: number,
   page: number = 1,
   limit: number = 10
-): Promise<{ sessions: Session[]; total: number }> {
+): Promise<{ sessions: any[]; total: number }> {
   try {
     const query = this.sessionsRepository
       .createQueryBuilder('session')
-      .select(['session']) // include all session fields
+      .select([
+        'session.session_id',
+        'session.session_date',
+        'session.remarks',
+        'session.created_at',
+      ])
       .leftJoin('session.patient', 'patient')
-      .addSelect(['patient.id', 'patient.name']) // ✅ use "id" not "patient_id"
+      .addSelect(['patient.patient_id', 'patient.name'])
       .leftJoin('session.doctor', 'doctor')
-      .addSelect(['doctor.id', 'doctor.name'])   // ✅ use "id"
-      .leftJoin('session.created_by', 'created_by')
-      .addSelect(['created_by.id', 'created_by.name']) // ✅ use "id"
-      .where('patient.id = :patientId', { patientId })
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .leftJoin('session.created_by', 'createdBy')
+      .addSelect(['createdBy.id', 'createdBy.name'])
+      .where('patient.patient_id = :patientId', { patientId })
       .orderBy('session.session_date', 'DESC')
       .skip((Number(page) - 1) * Number(limit))
       .take(Number(limit));
 
-    // Debug query print
-    query.printSql();
-
     const [sessions, total] = await query.getManyAndCount();
 
-    if (!sessions || sessions.length === 0) {
-      throw new NotFoundException(
-        `No sessions found for patient with ID ${patientId}`
-      );
-    }
-
-    return { sessions, total };
+    return {
+      sessions: sessions.map(s => ({
+        session_id: s.session_id,
+        session_date: s.session_date,
+        remarks: s.remarks,
+        created_at: s.created_at,
+        patient: s.patient ? { patient_id: s.patient.patient_id, name: s.patient.name } : null,
+        doctor: s.doctor ? { doctor_id: s.doctor.doctor_id, name: s.doctor.name } : null,
+        created_by: s.created_by ? { id: s.created_by.id, name: s.created_by.name } : null,
+      })),
+      total,
+    };
   } catch (error) {
     console.error('Error fetching sessions by patientId:', error);
     throw new InternalServerErrorException('Failed to fetch sessions');
