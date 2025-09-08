@@ -54,32 +54,29 @@ export class SessionsService {
   }
 }
 
-  async findOne(id: number): Promise<Session> {
-    try {
-      const session = await this.sessionsRepository.findOne({
-        where: { session_id: id },
-        relations: ['patient', 'doctor'],
-      });
+  async findOne(id: number): Promise<any> {
+  try {
+    const session = await this.sessionsRepository
+      .createQueryBuilder('session')
+      .leftJoin('session.patient', 'patient')
+      .addSelect(['patient.patient_id', 'patient.name'])
+      .leftJoin('session.doctor', 'doctor')
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .leftJoin('session.created_by', 'created_by')
+      .addSelect(['created_by.user_id', 'created_by.name'])
+      .where('session.session_id = :id', { id })
+      .getOne();
 
-      if (!session) {
-        throw new NotFoundException(`Session with ID ${id} not found`);
-      }
-
-      return session;
-    } catch (error) {
-      console.error('Error fetching session:', error);
-      // Fallback: relations ke bina try karein
-      const session = await this.sessionsRepository.findOne({
-        where: { session_id: id }
-      });
-
-      if (!session) {
-        throw new NotFoundException(`Session with ID ${id} not found`);
-      }
-
-      return session;
+    if (!session) {
+      throw new NotFoundException(`Session with ID ${id} not found`);
     }
+
+    return session;
+  } catch (error) {
+    console.error('Error fetching session:', error);
+    throw new Error('Failed to fetch session');
   }
+}
 
   async update(id: number, updateData: Partial<Session>): Promise<Session> {
     try {
