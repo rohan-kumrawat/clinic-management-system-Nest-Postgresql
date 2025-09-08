@@ -17,7 +17,7 @@ export class PaymentsService {
     private paymentsRepository: Repository<Payment>,
     private patientsService: PatientsService,
     private sessionsService: SessionsService,
-  ) {}
+  ) { }
 
   async create(paymentData: {
     patient: { patient_id: number };
@@ -27,19 +27,17 @@ export class PaymentsService {
     payment_mode?: PaymentMode;
     remarks?: string;
     payment_date: Date;
-  }): Promise<Payment> {
+  }): Promise<any> {   // 👈 return type 'any' so that filtered object return ho
     try {
       this.logger.debug(`Creating payment for patient ID: ${paymentData.patient.patient_id}`);
       this.logger.debug(`Payment data: ${JSON.stringify(paymentData)}`);
-      
+
       // Verify patient exists
       const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${paymentData.patient.patient_id} not found`);
       }
-      
-      this.logger.debug(`Found patient: ${JSON.stringify(patient)}`);
-      
+
       // Check if patient.total_amount exists
       if (patient.total_amount === undefined || patient.total_amount === null) {
         this.logger.error(`Patient #${patient.patient_id} is missing the 'total_amount' field.`);
@@ -51,12 +49,10 @@ export class PaymentsService {
       if (paymentData.session && paymentData.session.session_id) {
         try {
           sessionEntity = await this.sessionsService.findOne(paymentData.session.session_id);
-          this.logger.debug(`Found session: ${JSON.stringify(sessionEntity)}`);
         } catch (error) {
           if (error instanceof NotFoundException) {
             throw new NotFoundException(`Session with ID ${paymentData.session.session_id} not found`);
           }
-          this.logger.error(`Error finding session: ${error.message}`, error.stack);
           throw error;
         }
       }
@@ -66,27 +62,12 @@ export class PaymentsService {
         throw new BadRequestException('Payment amount must be greater than zero.');
       }
 
-      // Calculate remaining amount with better error handling
-      let totalPaid = 0;
-      try {
-        totalPaid = await this.getTotalPaid(patient.patient_id);
-        this.logger.debug(`Total paid for patient ${patient.patient_id}: ${totalPaid}`);
-      } catch (error) {
-        this.logger.warn(`Could not calculate total paid for patient ${patient.patient_id}, using 0: ${error.message}`);
-        totalPaid = 0;
-      }
-
-      // Debug logging
-      this.logger.debug(`Patient ${patient.patient_id} total_amount: ${patient.total_amount}`);
-      this.logger.debug(`Current total paid: ${totalPaid}`);
-      this.logger.debug(`New payment amount: ${paymentData.amount_paid}`);
-
-      // Ensure patient.total_amount is a valid number
+      // Calculate remaining amount
+      let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
       const patientTotal = patient.total_amount || 0;
       const remainingAmount = patientTotal - (totalPaid + paymentData.amount_paid);
-      this.logger.debug(`Calculated remaining amount: ${remainingAmount}`);
 
-      // Create payment entity using proper TypeORM create method
+      // Create payment entity
       const payment = new Payment();
       payment.patient = patient;
       payment.session = sessionEntity;
@@ -97,44 +78,62 @@ export class PaymentsService {
       payment.payment_date = paymentData.payment_date;
       payment.remaining_amount = remainingAmount < 0 ? 0 : remainingAmount;
 
-      this.logger.debug(`Attempting to save payment: ${JSON.stringify(payment)}`);
-      
       const savedPayment = await this.paymentsRepository.save(payment);
-      this.logger.log(`Payment #${savedPayment.payment_id} created successfully for patient #${patient.patient_id}`);
-      return savedPayment;
 
+      // ✅ Filtered response
+      return {
+        payment_id: savedPayment.payment_id,
+        patient: {
+          patient_id: patient.patient_id,
+          name: patient.name,
+        },
+        session: sessionEntity
+          ? {
+            session_id: sessionEntity.session_id,
+            name: (sessionEntity as any).name || null,
+          }
+          : null,
+        created_by: {
+          id: savedPayment.created_by.id,
+          name: (savedPayment.created_by as any).name || null,
+        },
+        amount_paid: savedPayment.amount_paid,
+        payment_mode: savedPayment.payment_mode,
+        remarks: savedPayment.remarks,
+        payment_date: savedPayment.payment_date,
+        remaining_amount: savedPayment.remaining_amount,
+        created_at: savedPayment.created_at,
+      };
     } catch (error) {
       this.logger.error(`Failed to create payment: ${error.message}`, error.stack);
-      this.logger.error(`Error details: ${JSON.stringify(error)}`);
-      
-      // Re-throw known exceptions
-      if (error instanceof NotFoundException || 
-          error instanceof BadRequestException || 
-          error instanceof InternalServerErrorException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error;
       }
-      
-      // Wrap any other unexpected error
       throw new InternalServerErrorException('Failed to process payment due to an internal error.');
     }
   }
 
+
   async getTotalPaid(patientId: number): Promise<number> {
     try {
       this.logger.debug(`Calculating total paid for patient ID: ${patientId}`);
-      
+
       // Use query builder for more reliable results
       const result = await this.paymentsRepository
         .createQueryBuilder('payment')
         .select('SUM(payment.amount_paid)', 'total')
         .where('payment.patient_id = :patientId', { patientId })
         .getRawOne();
-      
+
       this.logger.debug(`Query result: ${JSON.stringify(result)}`);
-      
+
       const total = parseFloat(result.total) || 0;
       this.logger.debug(`Total paid: ${total}`);
-      
+
       return total;
     } catch (error) {
       this.logger.error(`Failed to calculate total paid for patient #${patientId}: ${error.message}`, error.stack);
@@ -144,101 +143,101 @@ export class PaymentsService {
   }
 
   async findAll(): Promise<any[]> {
-  try {
-    const payments = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select([
-        'payment.payment_id',
-        'payment.amount_paid',
-        'payment.payment_mode',
-        'payment.remarks',
-        'payment.payment_date',
-        'payment.remaining_amount',
-        'payment.created_at',
-      ])
-      .leftJoin('payment.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
-      .leftJoin('payment.session', 'session')
-      .addSelect(['session.session_id', 'session.session_date'])
-      .leftJoin('payment.created_by', 'created_by')
-      .addSelect(['created_by.id', 'created_by.name'])
-      .orderBy('payment.payment_date', 'DESC')
-      .getMany();
+    try {
+      const payments = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select([
+          'payment.payment_id',
+          'payment.amount_paid',
+          'payment.payment_mode',
+          'payment.remarks',
+          'payment.payment_date',
+          'payment.remaining_amount',
+          'payment.created_at',
+        ])
+        .leftJoin('payment.patient', 'patient')
+        .addSelect(['patient.patient_id', 'patient.name'])
+        .leftJoin('payment.session', 'session')
+        .addSelect(['session.session_id', 'session.session_date'])
+        .leftJoin('payment.created_by', 'created_by')
+        .addSelect(['created_by.id', 'created_by.name'])
+        .orderBy('payment.payment_date', 'DESC')
+        .getMany();
 
-    return payments;
-  } catch (error) {
-    this.logger.error(`Failed to retrieve payments: ${error.message}`, error.stack);
-    throw new InternalServerErrorException('Failed to retrieve payments.');
+      return payments;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve payments: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to retrieve payments.');
+    }
   }
-}
 
   async findOne(id: number): Promise<any> {
-  try {
-    const payment = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select([
-        'payment.payment_id',
-        'payment.amount_paid',
-        'payment.payment_mode',
-        'payment.remarks',
-        'payment.payment_date',
-        'payment.remaining_amount',
-        'payment.created_at',
-      ])
-      .leftJoin('payment.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
-      .leftJoin('payment.session', 'session')
-      .addSelect(['session.session_id', 'session.session_date'])
-      .leftJoin('payment.created_by', 'created_by')
-      .addSelect(['created_by.id', 'created_by.name'])
-      .where('payment.payment_id = :id', { id })
-      .getOne();
+    try {
+      const payment = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select([
+          'payment.payment_id',
+          'payment.amount_paid',
+          'payment.payment_mode',
+          'payment.remarks',
+          'payment.payment_date',
+          'payment.remaining_amount',
+          'payment.created_at',
+        ])
+        .leftJoin('payment.patient', 'patient')
+        .addSelect(['patient.patient_id', 'patient.name'])
+        .leftJoin('payment.session', 'session')
+        .addSelect(['session.session_id', 'session.session_date'])
+        .leftJoin('payment.created_by', 'created_by')
+        .addSelect(['created_by.id', 'created_by.name'])
+        .where('payment.payment_id = :id', { id })
+        .getOne();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+      if (!payment) {
+        throw new NotFoundException(`Payment with ID ${id} not found`);
+      }
+      return payment;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve payment #${id}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to retrieve payment.');
     }
-    return payment;
-  } catch (error) {
-    this.logger.error(`Failed to retrieve payment #${id}: ${error.message}`, error.stack);
-    throw new InternalServerErrorException('Failed to retrieve payment.');
   }
-}
 
- async findByDateRange(startDate: Date, endDate: Date): Promise<any[]> {
-  try {
-    const payments = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select([
-        'payment.payment_id',
-        'payment.amount_paid',
-        'payment.payment_mode',
-        'payment.remarks',
-        'payment.payment_date',
-        'payment.remaining_amount',
-        'payment.created_at',
-      ])
-      .leftJoin('payment.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
-      .leftJoin('payment.session', 'session')
-      .addSelect(['session.session_id', 'session.session_date'])
-      .leftJoin('payment.created_by', 'created_by')
-      .addSelect(['created_by.id', 'created_by.name'])
-      .where('payment.payment_date BETWEEN :start AND :end', { start: startDate, end: endDate })
-      .orderBy('payment.payment_date', 'DESC')
-      .getMany();
+  async findByDateRange(startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      const payments = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select([
+          'payment.payment_id',
+          'payment.amount_paid',
+          'payment.payment_mode',
+          'payment.remarks',
+          'payment.payment_date',
+          'payment.remaining_amount',
+          'payment.created_at',
+        ])
+        .leftJoin('payment.patient', 'patient')
+        .addSelect(['patient.patient_id', 'patient.name'])
+        .leftJoin('payment.session', 'session')
+        .addSelect(['session.session_id', 'session.session_date'])
+        .leftJoin('payment.created_by', 'created_by')
+        .addSelect(['created_by.id', 'created_by.name'])
+        .where('payment.payment_date BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .orderBy('payment.payment_date', 'DESC')
+        .getMany();
 
-    return payments;
-  } catch (error) {
-    this.logger.error(`Failed to retrieve payments by date range: ${error.message}`, error.stack);
-    throw new InternalServerErrorException('Failed to retrieve payments by date range.');
+      return payments;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve payments by date range: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to retrieve payments by date range.');
+    }
   }
-}
 
   async getRevenueStats(startDate: Date, endDate: Date): Promise<{
     totalRevenue: number;
     revenueByMode: Record<PaymentMode, number>;
     dailyRevenue: { date: string; amount: number }[];
-  }> {
+      }> {
     try {
       // Validate dates
       if (startDate > endDate) {
@@ -246,126 +245,181 @@ export class PaymentsService {
       }
 
       const payments = await this.findByDateRange(startDate, endDate);
-      
+
       const totalRevenue = payments.reduce((total, payment) => total + payment.amount_paid, 0);
-      
+
       const revenueByMode = {} as Record<PaymentMode, number>;
       Object.values(PaymentMode).forEach(mode => {
         revenueByMode[mode] = 0;
       });
-      
+
       payments.forEach(payment => {
         const mode = payment.payment_mode || PaymentMode.CASH;
         revenueByMode[mode] = (revenueByMode[mode] || 0) + payment.amount_paid;
       });
-      
+
       // Group by day
       const dailyRevenueMap = new Map<string, number>();
       payments.forEach(payment => {
         const dateStr = payment.payment_date.toISOString().split('T')[0];
         dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + payment.amount_paid);
       });
-      
-      const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(([date, amount]) => ({ 
-        date, 
-        amount: parseFloat(amount.toFixed(2)) 
+
+      const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(([date, amount]) => ({
+        date,
+        amount: parseFloat(amount.toFixed(2))
       }));
-      
+
       // Sort daily revenue by date
       dailyRevenue.sort((a, b) => a.date.localeCompare(b.date));
-      
-      return { 
-        totalRevenue: parseFloat(totalRevenue.toFixed(2)), 
-        revenueByMode, 
-        dailyRevenue 
+
+      return {
+        totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+        revenueByMode,
+        dailyRevenue
       };
     } catch (error) {
       this.logger.error(`Failed to generate revenue stats: ${error.message}`, error.stack);
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       throw new InternalServerErrorException('Failed to generate revenue statistics.');
     }
-  }
-
-  async update(id: number, updateData: Partial<Payment>): Promise<Payment> {
-    try {
-      // Check if payment exists first
-      await this.findOne(id);
-      
-      await this.paymentsRepository.update(id, updateData);
-      return await this.findOne(id);
-    } catch (error) {
-      this.logger.error(`Failed to update payment #${id}: ${error.message}`, error.stack);
-      
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      
-      throw new InternalServerErrorException('Failed to update payment.');
     }
-  }
 
-  async remove(id: number): Promise<void> {
-    try {
-      // Check if payment exists first
-      await this.findOne(id);
-      
-      const result = await this.paymentsRepository.delete(id);
-      if (result.affected === 0) {
-        throw new NotFoundException(`Payment with ID ${id} not found`);
-      }
-      
-      this.logger.log(`Payment #${id} deleted successfully.`);
-    } catch (error) {
-      this.logger.error(`Failed to delete payment #${id}: ${error.message}`, error.stack);
-      
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      
-      throw new InternalServerErrorException('Failed to delete payment.');
-    }
-  }
-
-  // Find Payments by Patient ID with pagination
-  
-   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: any[], total: number }> {
+  async update(id: number, updateData: Partial<Payment>): Promise<any> {
   try {
-    const query = this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select([
-        'payment.payment_id',
-        'payment.amount_paid',
-        'payment.payment_mode',
-        'payment.remarks',
-        'payment.payment_date',
-        'payment.remaining_amount',
-        'payment.created_at',
-      ])
-      .leftJoin('payment.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
-      .leftJoin('payment.session', 'session')
-      .addSelect(['session.session_id', 'session.session_date'])
-      .leftJoin('payment.created_by', 'created_by')
-      .addSelect(['created_by.id', 'created_by.name'])
-      .where('patient.patient_id = :patientId', { patientId })
-      .orderBy('payment.payment_date', 'DESC')
-      .skip((Number(page) - 1) * Number(limit))
-      .take(Number(limit));
+    // Check if payment exists first
+    const existingPayment = await this.findOne(id);
 
-    const [payments, total] = await query.getManyAndCount();
+    await this.paymentsRepository.update(id, updateData);
+    const updatedPayment = await this.findOne(id);
 
-    if (!payments || payments.length === 0) {
-      throw new NotFoundException(`No payments found for patient with ID ${patientId}`);
+    // ✅ Filtered response
+    return {
+      payment_id: updatedPayment.payment_id,
+      patient: {
+        patient_id: updatedPayment.patient.patient_id,
+        name: updatedPayment.patient.name,
+      },
+      session: updatedPayment.session
+        ? {
+            session_id: updatedPayment.session.session_id,
+            name: (updatedPayment.session as any).name || null,
+          }
+        : null,
+      created_by: {
+        id: updatedPayment.created_by.id,
+        name: (updatedPayment.created_by as any).name || null,
+      },
+      amount_paid: updatedPayment.amount_paid,
+      payment_mode: updatedPayment.payment_mode,
+      remarks: updatedPayment.remarks,
+      payment_date: updatedPayment.payment_date,
+      remaining_amount: updatedPayment.remaining_amount,
+      created_at: updatedPayment.created_at,
+    };
+  } catch (error) {
+    this.logger.error(`Failed to update payment #${id}: ${error.message}`, error.stack);
+
+    if (error instanceof NotFoundException) {
+      throw error;
     }
 
-    return { payments, total };
-  } catch (error) {
-    this.logger.error(`Failed to fetch payments for patient ${patientId}: ${error.message}`, error.stack);
-    throw new InternalServerErrorException('Failed to fetch payments.');
+    throw new InternalServerErrorException('Failed to update payment.');
   }
 }
+
+
+  async remove(id: number): Promise<any> {
+  try {
+    // First get filtered payment details
+    const payment = await this.findOne(id);
+
+    const result = await this.paymentsRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Payment with ID ${id} not found`);
+    }
+
+    this.logger.log(`Payment #${id} deleted successfully.`);
+
+    // ✅ Return filtered deleted record
+    return {
+      deleted: true,
+      payment: {
+        payment_id: payment.payment_id,
+        patient: {
+          patient_id: payment.patient.patient_id,
+          name: payment.patient.name,
+        },
+        session: payment.session
+          ? {
+              session_id: payment.session.session_id,
+              name: (payment.session as any).name || null,
+            }
+          : null,
+        created_by: {
+          id: payment.created_by.id,
+          name: (payment.created_by as any).name || null,
+        },
+        amount_paid: payment.amount_paid,
+        payment_mode: payment.payment_mode,
+        remarks: payment.remarks,
+        payment_date: payment.payment_date,
+        remaining_amount: payment.remaining_amount,
+        created_at: payment.created_at,
+      },
+    };
+  } catch (error) {
+    this.logger.error(`Failed to delete payment #${id}: ${error.message}`, error.stack);
+
+    if (error instanceof NotFoundException) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException('Failed to delete payment.');
+  }
+}
+
+
+  // Find Payments by Patient ID with pagination
+
+  async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: any[], total: number }> {
+    try {
+      const query = this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select([
+          'payment.payment_id',
+          'payment.amount_paid',
+          'payment.payment_mode',
+          'payment.remarks',
+          'payment.payment_date',
+          'payment.remaining_amount',
+          'payment.created_at',
+        ])
+        .leftJoin('payment.patient', 'patient')
+        .addSelect(['patient.patient_id', 'patient.name'])
+        .leftJoin('payment.session', 'session')
+        .addSelect(['session.session_id', 'session.session_date'])
+        .leftJoin('payment.created_by', 'created_by')
+        .addSelect(['created_by.id', 'created_by.name'])
+        .where('patient.patient_id = :patientId', { patientId })
+        .orderBy('payment.payment_date', 'DESC')
+        .skip((Number(page) - 1) * Number(limit))
+        .take(Number(limit));
+
+      const [payments, total] = await query.getManyAndCount();
+
+      if (!payments || payments.length === 0) {
+        throw new NotFoundException(`No payments found for patient with ID ${patientId}`);
+      }
+
+      return { payments, total };
+    } catch (error) {
+      this.logger.error(`Failed to fetch payments for patient ${patientId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to fetch payments.');
+    }
+  }
 }
