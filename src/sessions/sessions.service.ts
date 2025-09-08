@@ -58,12 +58,18 @@ export class SessionsService {
   try {
     const session = await this.sessionsRepository
       .createQueryBuilder('session')
-      .leftJoin('session.patient', 'patient')
-      .addSelect(['patient.patient_id', 'patient.name'])
-      .leftJoin('session.doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name'])
-      .leftJoin('session.created_by', 'created_by')
-      .addSelect(['created_by.user_id', 'created_by.name'])
+      .leftJoinAndSelect('session.patient', 'patient')
+      .leftJoinAndSelect('session.doctor', 'doctor')
+      .leftJoinAndSelect('session.created_by', 'created_by')
+      .select([
+        'session', // ✅ session ke apne saare columns
+        'patient.patient_id',
+        'patient.name',
+        'doctor.doctor_id',
+        'doctor.name',
+        'created_by.user_id',
+        'created_by.name',
+      ])
       .where('session.session_id = :id', { id })
       .getOne();
 
