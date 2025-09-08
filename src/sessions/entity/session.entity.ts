@@ -18,7 +18,7 @@ export class Session {
   @JoinColumn({ name: 'doctor_id' }) // ✅ Explicit join column add karein
   doctor: Doctor;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, (user) => user.sessionsCreated)
   @JoinColumn({ name: 'created_by' })
   created_by: User;
 

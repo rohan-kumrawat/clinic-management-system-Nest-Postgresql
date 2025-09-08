@@ -54,35 +54,30 @@ export class SessionsService {
   }
 }
 
-  async findOne(id: number): Promise<any> {
+  async findOne(id: number): Promise<Session> {
   try {
-    const session = await this.sessionsRepository
-      .createQueryBuilder('session')
-      .leftJoinAndSelect('session.patient', 'patient')
-      .leftJoinAndSelect('session.doctor', 'doctor')
-      .leftJoinAndSelect('session.created_by', 'created_by')
-      .select([
-        'session', // ✅ session ke apne saare columns
-        'patient.patient_id',
-        'patient.name',
-        'doctor.doctor_id',
-        'doctor.name',
-        'created_by.user_id',
-        'created_by.name',
-      ])
-      .where('session.session_id = :id', { id })
-      .getOne();
+    const session = await this.sessionsRepository.findOne({
+      where: { session_id: id },
+      relations: ['patient', 'doctor', 'created_by'], // 👈 add this
+    });
 
     if (!session) {
       throw new NotFoundException(`Session with ID ${id} not found`);
     }
 
-    return session;
+    // केवल आवश्यक fields return करने के लिए transform कर सकते हैं
+    return {
+      ...session,
+      created_by: session.created_by
+        ? { id: session.created_by.id, name: session.created_by.name }
+        : null,
+    } as any;
   } catch (error) {
     console.error('Error fetching session:', error);
-    throw new Error('Failed to fetch session');
+    throw new InternalServerErrorException('Failed to fetch session');
   }
 }
+
 
   async update(id: number, updateData: Partial<Session>): Promise<Session> {
     try {
