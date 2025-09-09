@@ -22,6 +22,17 @@ export class Session {
   @JoinColumn({ name: 'created_by' })
   created_by: User;
 
+  
+  
+  @Column({
+    type: 'enum',
+    enum: ['clinic', 'home'],   
+    nullable: true           
+  })
+  visit_type?: 'clinic' | 'home';
+
+
+
   @Column({ type: 'date' })
   session_date: Date;
 
