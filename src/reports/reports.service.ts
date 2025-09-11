@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment, PaymentMode } from '../payments/entity/payment.entity';
@@ -21,120 +21,229 @@ export class ReportsService {
   ) {}
 
   async getDashboardStats() {
-    const patientStats = await this.patientsRepository
-      .createQueryBuilder('patient')
-      .select('patient.status', 'status')
-      .addSelect('COUNT(patient.patient_id)', 'count')
-      .groupBy('patient.status')
-      .getRawMany();
+    try {
+      const patientStats = await this.patientsRepository
+        .createQueryBuilder('patient')
+        .select('patient.status', 'status')
+        .addSelect('COUNT(patient.patient_id)', 'count')
+        .groupBy('patient.status')
+        .getRawMany();
 
-    const totalRevenue = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select('SUM(payment.amount_paid)', 'total')
-      .getRawOne();
+      const totalRevenue = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount_paid)', 'total')
+        .getRawOne();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const todayRevenue = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select('SUM(payment.amount_paid)', 'total')
-      .where('payment.payment_date >= :today', { today })
-      .getRawOne();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const todayRevenue = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date >= :today', { today })
+        .getRawOne();
 
-    const monthlyRevenue = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select('SUM(payment.amount_paid)', 'total')
-      .where('payment.payment_date >= :startOfMonth', { 
-        startOfMonth: new Date(today.getFullYear(), today.getMonth(), 1) 
-      })
-      .getRawOne();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const monthlyRevenue = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date >= :startOfMonth', { startOfMonth })
+        .getRawOne();
 
-    return {
-      patientStats,
-      revenue: {
-        total: parseFloat(totalRevenue.total) || 0,
-        today: parseFloat(todayRevenue.total) || 0,
-        monthly: parseFloat(monthlyRevenue.total) || 0,
-      }
-    };
+      // Get today's sessions count
+      const todaysSessions = await this.sessionsRepository
+        .createQueryBuilder('session')
+        .where('session.session_date >= :today', { today })
+        .getCount();
+
+      return {
+        patientStats,
+        revenue: {
+          total: parseFloat(totalRevenue.total) || 0,
+          today: parseFloat(todayRevenue.total) || 0,
+          monthly: parseFloat(monthlyRevenue.total) || 0,
+        },
+        todaysSessions
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch dashboard statistics');
+    }
   }
 
   async getDoctorWiseStats(startDate: Date, endDate: Date) {
-    return this.doctorsRepository
-      .createQueryBuilder('doctor')
-      .leftJoin('doctor.sessions', 'session', 'session.session_date BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
-      })
-      .leftJoin('session.payment', 'payment')
-      .select('doctor.name', 'doctorName')
-      .addSelect('COUNT(DISTINCT session.patient_id)', 'patientCount')
-      .addSelect('COUNT(session.session_id)', 'sessionCount')
-      .addSelect('SUM(payment.amount_paid)', 'revenue')
-      .groupBy('doctor.doctor_id')
-      .getRawMany();
+    // Validate dates
+    if (!startDate || !endDate) {
+      throw new BadRequestException('Start and end dates are required');
+    }
+    
+    if (startDate > endDate) {
+      throw new BadRequestException('Start date cannot be after end date');
+    }
+
+    try {
+      return await this.doctorsRepository
+        .createQueryBuilder('doctor')
+        .leftJoin('doctor.sessions', 'session', 'session.session_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate,
+        })
+        .leftJoin('session.payment', 'payment')
+        .select('doctor.name', 'doctorName')
+        .addSelect('doctor.doctor_id', 'doctorId')
+        .addSelect('COUNT(DISTINCT session.patient_id)', 'patientCount')
+        .addSelect('COUNT(session.session_id)', 'sessionCount')
+        .addSelect('COALESCE(SUM(payment.amount_paid), 0)', 'revenue')
+        .groupBy('doctor.doctor_id')
+        .getRawMany();
+    } catch (error) {
+      throw new BadRequestException('Failed to generate doctor-wise statistics');
+    }
   }
 
   async getPatientHistory(id: number): Promise<any> {
-    const patient = await this.patientsRepository.findOne({
-      where: { patient_id: id },
-      relations: ['sessions', 'payment', 'assigned_doctor'],
-    });
-
-    if (!patient) {
-      throw new NotFoundException('Patient with ID ${id} not found');
+    if (!id || isNaN(id)) {
+      throw new BadRequestException('Valid patient ID is required');
     }
 
-    //Calculate total paid and remaining amount
+    try {
+      const patient = await this.patientsRepository.findOne({
+        where: { patient_id: id },
+        relations: ['sessions', 'sessions.payment', 'sessions.doctor', 'payments', 'assigned_doctor'],
+      });
+
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
+
+      // Calculate total paid and remaining amount
       const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
       const remainingAmount = patient.total_amount - totalPaid;
 
-    return {
-      patient:{
-        ...patient,
-        totalPaid,
-        remainingAmount
-      },
-      sessions: patient.sessions,
-      payments: patient.payments,
-      totalPaid: patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0),
-      remainingAmount: patient.total_amount - patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0),
-    };
+      // Sort sessions by date descending
+      const sortedSessions = patient.sessions.sort(
+        (a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
+      );
+
+      // Sort payments by date descending
+      const sortedPayments = patient.payments.sort(
+        (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+      );
+
+      return {
+        patient: {
+          ...patient,
+          totalPaid,
+          remainingAmount
+        },
+        sessions: sortedSessions,
+        payments: sortedPayments,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to fetch patient history');
+    }
   }
 
   async exportData(type: 'patients' | 'sessions' | 'payments', startDate?: Date, endDate?: Date) {
-    let data: any[] = [];
-    
-    switch (type) {
-      case 'patients':
-        data = await this.patientsRepository.find({
-          relations: ['assigned_doctor'],
-          where: startDate && endDate ? {
-            created_at: Between(startDate, endDate),
-          } : {},
-        });
-        break;
+    try {
+      let data: any[] = [];
+      let whereCondition = {};
+      
+      // Prepare date filter if both dates provided
+      if (startDate && endDate) {
+        if (startDate > endDate) {
+          throw new BadRequestException('Start date cannot be after end date');
+        }
         
-      case 'sessions':
-        data = await this.sessionsRepository.find({
-          relations: ['patient', 'doctor'],
-          where: startDate && endDate ? {
-            session_date: Between(startDate, endDate),
-          } : {},
-        });
-        break;
+        // Adjust end date to include the entire day
+        const adjustedEndDate = new Date(endDate);
+        adjustedEndDate.setHours(23, 59, 59, 999);
         
-      case 'payments':
-        data = await this.paymentsRepository.find({
-          relations: ['patient'],
-          where: startDate && endDate ? {
-            payment_date: Between(startDate, endDate),
-          } : {},
-        });
-        break;
+        switch (type) {
+          case 'patients':
+            whereCondition = { created_at: Between(startDate, adjustedEndDate) };
+            break;
+          case 'sessions':
+            whereCondition = { session_date: Between(startDate, adjustedEndDate) };
+            break;
+          case 'payments':
+            whereCondition = { payment_date: Between(startDate, adjustedEndDate) };
+            break;
+        }
+      }
+      
+      switch (type) {
+        case 'patients':
+          data = await this.patientsRepository.find({
+            relations: ['assigned_doctor'],
+            where: whereCondition,
+            order: { created_at: 'DESC' },
+          });
+          break;
+          
+        case 'sessions':
+          data = await this.sessionsRepository.find({
+            relations: ['patient', 'doctor'],
+            where: whereCondition,
+            order: { session_date: 'DESC' },
+          });
+          break;
+          
+        case 'payments':
+          data = await this.paymentsRepository.find({
+            relations: ['patient'],
+            where: whereCondition,
+            order: { payment_date: 'DESC' },
+          });
+          break;
+      }
+      
+      return data;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to export data');
+    }
+  }
+
+  // NEW: Financial summary report
+  async getFinancialSummary(startDate: Date, endDate: Date) {
+    if (!startDate || !endDate) {
+      throw new BadRequestException('Start and end dates are required');
     }
     
-    return data;
+    if (startDate > endDate) {
+      throw new BadRequestException('Start date cannot be after end date');
+    }
+
+    try {
+      // Adjust end date to include the entire day
+      const adjustedEndDate = new Date(endDate);
+      adjustedEndDate.setHours(23, 59, 59, 999);
+      
+      const payments = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('payment.payment_mode', 'paymentMode')
+        .addSelect('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate: adjustedEndDate
+        })
+        .groupBy('payment.payment_mode')
+        .getRawMany();
+      
+      const totalRevenue = payments.reduce((sum, item) => sum + parseFloat(item.total), 0);
+      
+      return {
+        period: { startDate, endDate },
+        revenueByPaymentMode: payments,
+        totalRevenue
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to generate financial summary');
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.gaurd';
@@ -22,16 +22,21 @@ export class ReportsController {
     @Query('start') startDate: string,
     @Query('end') endDate: string,
   ) {
-    return this.reportsService.getDoctorWiseStats(
-      new Date(startDate),
-      new Date(endDate),
-    );
+    // Validate and parse dates
+    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const end = endDate ? new Date(endDate) : new Date();
+    
+    // Reset time part for consistent filtering
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    
+    return this.reportsService.getDoctorWiseStats(start, end);
   }
 
   @Get('patient-history/:id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  getPatientHistory(@Query('id') patientId: string) {
-    return this.reportsService.getPatientHistory(parseInt(patientId));
+  getPatientHistory(@Param('id', ParseIntPipe) patientId: number) {
+    return this.reportsService.getPatientHistory(patientId);
   }
 
   @Get('export')
@@ -41,10 +46,32 @@ export class ReportsController {
     @Query('start') startDate?: string,
     @Query('end') endDate?: string,
   ) {
-    return this.reportsService.exportData(
-      type,
-      startDate ? new Date(startDate) : undefined,
-      endDate ? new Date(endDate) : undefined,
-    );
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+    
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+    
+    return this.reportsService.exportData(type, start, end);
+  }
+
+  // NEW: Financial summary endpoint
+  @Get('financial-summary')
+  @Roles(UserRole.OWNER)
+  getFinancialSummary(
+    @Query('start') startDate: string,
+    @Query('end') endDate: string,
+  ) {
+    if (!startDate || !endDate) {
+      throw new BadRequestException('Both start and end dates are required for financial summary');
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    
+    return this.reportsService.getFinancialSummary(start, end);
   }
 }
