@@ -74,4 +74,34 @@ export class ReportsController {
     
     return this.reportsService.getFinancialSummary(start, end);
   }
+
+@Get('referral-analysis')
+@Roles(UserRole.OWNER)
+getReferralAnalysis(
+  @Query('start') startDate?: string,
+  @Query('end') endDate?: string,
+) {
+  const start = startDate ? new Date(startDate) : undefined;
+  const end = endDate ? new Date(endDate) : undefined;
+  
+  if (start) start.setHours(0, 0, 0, 0);
+  if (end) end.setHours(23, 59, 59, 999);
+  
+  return this.reportsService.getReferralAnalysis(start, end);
+}
+
+@Get('doctor-referral-performance')
+@Roles(UserRole.OWNER)
+getDoctorReferralPerformance(
+  @Query('start') startDate?: string,
+  @Query('end') endDate?: string,
+) {
+  const start = startDate ? new Date(startDate) : undefined;
+  const end = endDate ? new Date(endDate) : undefined;
+  
+  if (start) start.setHours(0, 0, 0, 0);
+  if (end) end.setHours(23, 59, 59, 999);
+  
+  return this.reportsService.getDoctorReferralPerformance(start, end);
+}
 }

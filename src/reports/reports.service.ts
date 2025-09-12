@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Between, Like } from 'typeorm';
 import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
-import { Payment, PaymentMode } from '../payments/entity/payment.entity';
+import { Payment } from '../payments/entity/payment.entity';
 import { Doctor } from '../doctors/entity/doctor.entity';
-import { PatientStatus } from 'src/common/enums';
+
 
 @Injectable()
 export class ReportsService {
@@ -246,4 +246,127 @@ export class ReportsService {
       throw new BadRequestException('Failed to generate financial summary');
     }
   }
+
+  // Get referral analysis report
+
+  async getReferralAnalysis(startDate?: Date, endDate?: Date): Promise<any> {
+  try {
+    let whereCondition: any = { referred_dr: Like('%') }; // Only patients with referred_dr
+    
+    if (startDate && endDate) {
+      if (startDate > endDate) {
+        throw new BadRequestException('Start date cannot be after end date');
+      }
+      whereCondition.created_at = Between(startDate, endDate);
+    }
+    
+    const referredPatients = await this.patientsRepository.find({
+      where: whereCondition,
+      relations: ['assigned_doctor'],
+      order: { referred_dr: 'ASC' }
+    });
+    
+    // Group by referred doctor
+    const referralStats: { [key: string]: { count: number, patients: any[] } } = {};
+    
+    referredPatients.forEach(patient => {
+      if (!referralStats[patient.referred_dr]) {
+        referralStats[patient.referred_dr] = {
+          count: 0,
+          patients: []
+        };
+      }
+      
+      referralStats[patient.referred_dr].count += 1;
+      referralStats[patient.referred_dr].patients.push({
+        id: patient.patient_id,
+        name: patient.name,
+        mobile: patient.mobile,
+        assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
+        created_at: patient.created_at
+      });
+    });
+    
+    // Convert to array and sort by count descending
+    const result = Object.entries(referralStats)
+      .map(([referred_dr, stats]) => ({
+        referred_dr,
+        patient_count: stats.count,
+        patients: stats.patients
+      }))
+      .sort((a, b) => b.patient_count - a.patient_count);
+    
+    return result;
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new BadRequestException('Failed to generate referral analysis report');
+  }
+}
+
+/**
+ * Get doctor referral performance - which of our doctors received how many referred patients
+ */
+async getDoctorReferralPerformance(startDate?: Date, endDate?: Date): Promise<any> {
+  try {
+    let whereCondition: any = { referred_dr: Like('%') }; // Only patients with referred_dr
+    
+    if (startDate && endDate) {
+      if (startDate > endDate) {
+        throw new BadRequestException('Start date cannot be after end date');
+      }
+      whereCondition.created_at = Between(startDate, endDate);
+    }
+    
+    const referredPatients = await this.patientsRepository.find({
+      where: whereCondition,
+      relations: ['assigned_doctor'],
+      order: { assigned_doctor: 'ASC' }
+    });
+    
+    // Group by assigned doctor
+    const doctorStats: { [key: string]: { count: number, patients: any[] } } = {
+      'Not Assigned': { count: 0, patients: [] }
+    };
+    
+    referredPatients.forEach(patient => {
+      const doctorKey = patient.assigned_doctor ? 
+        `${patient.assigned_doctor.name} (ID: ${patient.assigned_doctor.doctor_id})` : 
+        'Not Assigned';
+      
+      if (!doctorStats[doctorKey]) {
+        doctorStats[doctorKey] = {
+          count: 0,
+          patients: []
+        };
+      }
+      
+      doctorStats[doctorKey].count += 1;
+      doctorStats[doctorKey].patients.push({
+        id: patient.patient_id,
+        name: patient.name,
+        mobile: patient.mobile,
+        referred_dr: patient.referred_dr,
+        created_at: patient.created_at
+      });
+    });
+    
+    // Convert to array and sort by count descending
+    const result = Object.entries(doctorStats)
+      .map(([doctor, stats]) => ({
+        doctor,
+        referred_patient_count: stats.count,
+        patients: stats.patients
+      }))
+      .sort((a, b) => b.referred_patient_count - a.referred_patient_count);
+    
+    return result;
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new BadRequestException('Failed to generate doctor referral performance report');
+  }
+}
 }
