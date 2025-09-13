@@ -497,10 +497,10 @@ export class PdfService {
     // Clinic information - Top section
     doc
       .fillColor(primaryColor)
-      .fontSize(20)
+      .fontSize(15)
       .font('Helvetica-Bold')
       .text(this.clinicInfo.name, 50, 40, { align: 'center' })
-      .fontSize(12)
+      .fontSize(25)
       .font('Helvetica')
       .text(this.clinicInfo.subName, 50, 65, { align: 'center' })
       .fontSize(10)
@@ -581,7 +581,7 @@ export class PdfService {
     
     // Table header with background color
     doc.rect(50, startY - 10, 500, 25).fill(primaryColor);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000');
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
     
     headers.forEach((header, i) => {
       doc.text(header, columnPositions[i], startY);
