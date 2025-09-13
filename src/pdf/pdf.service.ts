@@ -625,7 +625,315 @@ export class PdfService {
     return y;
   }
 
-  // 7. Pending Payments PDF - Completely redesigned
+  // 1. Dashboard Report PDF
+  async generateDashboardReport(data: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = 'Dashboard Report';
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        this.addHeader(doc, currentHeaderTitle);
+        
+        // Start content below the header
+        const startY = 230;
+        
+        // Patient Statistics
+        doc.fontSize(12).text('Patient Statistics', 50, startY);
+        
+        let yPosition = startY + 30;
+        data.patientStats.forEach((stat: any) => {
+          doc.text(`${stat.status}: ${stat.count}`, 50, yPosition);
+          yPosition += 20;
+        });
+
+        // Revenue Statistics
+        doc.fontSize(12).text('Revenue Statistics', 50, yPosition + 10);
+        doc
+          .text(`Total Revenue: ${this.formatCurrency(data.revenue.total)}`, 50, yPosition + 40)
+          .text(`Today's Revenue: ${this.formatCurrency(data.revenue.today)}`, 50, yPosition + 60)
+          .text(`Monthly Revenue: ${this.formatCurrency(data.revenue.monthly)}`, 50, yPosition + 80)
+          .text(`Today's Sessions: ${data.todaysSessions}`, 50, yPosition + 100);
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 2. Doctor-wise Stats PDF
+  async generateDoctorWiseReport(data: any, startDate: string, endDate: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Doctor-wise Performance Report (${startDate} to ${endDate})`;
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        this.addHeader(doc, currentHeaderTitle);
+        
+        // Period information
+        doc.fontSize(10).text(`Period: ${startDate} to ${endDate}`, 50, 230);
+        
+        // Prepare table data
+        const headers = ['Doctor Name', 'Patients', 'Sessions', 'Revenue'];
+        const rows = data.map((doctor: any) => [
+          doctor.doctorName,
+          doctor.patientCount.toString(),
+          doctor.sessionCount.toString(),
+          this.formatCurrency(parseFloat(doctor.revenue))
+        ]);
+        
+        const columnPositions = [50, 250, 350, 450];
+        this.drawTable(doc, headers, rows, columnPositions, 250, currentHeaderTitle);
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 3. Patient History PDF
+  async generatePatientHistoryReport(data: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        const { patient, sessions, payments } = data;
+        const patientHeaderTitle = `Patient History - ${patient.name}`;
+        
+        this.addHeader(doc, patientHeaderTitle);
+        
+        // Patient Information
+        const startY = 230;
+        doc.fontSize(12).text('Patient Information', 50, startY);
+        doc
+          .text(`Name: ${patient.name}`, 50, startY + 30)
+          .text(`Age: ${patient.age}`, 50, startY + 50)
+          .text(`Mobile: ${patient.mobile}`, 50, startY + 70)
+          .text(`Status: ${patient.status}`, 50, startY + 90)
+          .text(`Assigned Doctor: ${patient.assigned_doctor?.name || 'Not assigned'}`, 50, startY + 110)
+          .text(`Total Amount: ${this.formatCurrency(parseFloat(patient.total_amount))}`, 50, startY + 130)
+          .text(`Paid Amount: ${this.formatCurrency(patient.totalPaid)}`, 50, startY + 150)
+          .text(`Remaining Amount: ${this.formatCurrency(patient.remainingAmount)}`, 50, startY + 170);
+
+        // Sessions Information
+        if (sessions && sessions.length > 0) {
+          doc.addPage();
+          const sessionsHeaderTitle = `Patient Sessions - ${patient.name}`;
+          this.addHeader(doc, sessionsHeaderTitle);
+          
+          const headers = ['Date', 'Doctor', 'Visit Type', 'Remarks'];
+          const rows = sessions.map((session: any) => [
+            this.formatDate(new Date(session.session_date)),
+            session.doctor.name,
+            session.visit_type || 'N/A',
+            (session.remarks || 'No remarks').substring(0, 30) + (session.remarks?.length > 30 ? '...' : '')
+          ]);
+          
+          const columnPositions = [50, 120, 250, 350];
+          this.drawTable(doc, headers, rows, columnPositions, 180, sessionsHeaderTitle);
+        }
+
+        // Payments Information
+        if (payments && payments.length > 0) {
+          doc.addPage();
+          const paymentsHeaderTitle = `Payment History - ${patient.name}`;
+          this.addHeader(doc, paymentsHeaderTitle);
+          
+          const headers = ['Date', 'Amount Paid', 'Payment Mode', 'Remaining'];
+          const rows = payments.map((payment: any) => [
+            this.formatDate(new Date(payment.payment_date)),
+            this.formatCurrency(payment.amount_paid),
+            payment.payment_mode,
+            this.formatCurrency(payment.remaining_amount)
+          ]);
+          
+          const columnPositions = [50, 150, 250, 350];
+          this.drawTable(doc, headers, rows, columnPositions, 180, paymentsHeaderTitle);
+        }
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 4. Financial Summary PDF
+  async generateFinancialReport(data: any, startDate: string, endDate: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Financial Summary Report (${startDate} to ${endDate})`;
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        this.addHeader(doc, currentHeaderTitle);
+        
+        // Period information
+        doc.fontSize(10)
+          .text(`Period: ${startDate} to ${endDate}`, 50, 230)
+          .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 250);
+        
+        // Revenue by payment mode table
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, 280);
+        
+        const headers = ['Payment Mode', 'Amount'];
+        const rows = data.revenueByPaymentMode.map((item: any) => [
+          item.paymentMode,
+          this.formatCurrency(parseFloat(item.total))
+        ]);
+        
+        const columnPositions = [50, 250];
+        this.drawTable(doc, headers, rows, columnPositions, 300, currentHeaderTitle);
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 5. Monthly Financial Report PDF
+  async generateMonthlyFinancialReport(data: any, year: number, month: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const currentHeaderTitle = `Monthly Financial Report - ${monthNames[month-1]} ${year}`;
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        this.addHeader(doc, currentHeaderTitle);
+        
+        // Period information
+        doc.fontSize(10)
+          .text(`Period: ${monthNames[month-1]} ${year}`, 50, 230)
+          .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 250);
+        
+        // Daily Revenue Chart
+        doc.fontSize(12).text('Daily Revenue', 50, 280);
+        
+        const dailyHeaders = ['Date', 'Revenue'];
+        const dailyRows = data.dailyRevenue.map((item: any) => [
+          item.date,
+          this.formatCurrency(parseFloat(item.revenue))
+        ]);
+        
+        const dailyColumnPositions = [50, 250];
+        let yPosition = this.drawTable(doc, dailyHeaders, dailyRows, dailyColumnPositions, 300, currentHeaderTitle);
+
+        // Revenue by payment mode
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, yPosition + 20);
+        
+        const paymentHeaders = ['Payment Mode', 'Amount'];
+        const paymentRows = data.revenueByPaymentMode.map((item: any) => [
+          item.paymentMode,
+          this.formatCurrency(parseFloat(item.total))
+        ]);
+        
+        this.drawTable(doc, paymentHeaders, paymentRows, dailyColumnPositions, yPosition + 50, currentHeaderTitle);
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 6. Yearly Financial Report PDF
+  async generateYearlyFinancialReport(data: any, year: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Yearly Financial Report - ${year}`;
+        const buffers: any[] = [];
+        
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          resolve(pdfData);
+        });
+
+        this.addHeader(doc, currentHeaderTitle);
+        
+        // Period information
+        doc.fontSize(10)
+          .text(`Year: ${year}`, 50, 230)
+          .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 250);
+        
+        // Monthly Revenue Chart
+        doc.fontSize(12).text('Monthly Revenue', 50, 280);
+        
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        const monthlyHeaders = ['Month', 'Revenue'];
+        const monthlyRows = data.monthlyRevenue.map((item: any) => [
+          monthNames[parseInt(item.month) - 1],
+          this.formatCurrency(parseFloat(item.revenue))
+        ]);
+        
+        const monthlyColumnPositions = [50, 250];
+        let yPosition = this.drawTable(doc, monthlyHeaders, monthlyRows, monthlyColumnPositions, 300, currentHeaderTitle);
+
+        // Revenue by payment mode
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, yPosition + 20);
+        
+        const paymentHeaders = ['Payment Mode', 'Amount'];
+        const paymentRows = data.revenueByPaymentMode.map((item: any) => [
+          item.paymentMode,
+          this.formatCurrency(parseFloat(item.total))
+        ]);
+        
+        this.drawTable(doc, paymentHeaders, paymentRows, monthlyColumnPositions, yPosition + 50, currentHeaderTitle);
+
+        this.addFooter(doc);
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  // 7. Pending Payments PDF
   async generatePendingPaymentsReport(data: any): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
@@ -673,6 +981,4 @@ export class PdfService {
       }
     });
   }
-
-
 }
