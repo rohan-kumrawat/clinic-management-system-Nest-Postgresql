@@ -464,13 +464,13 @@ export class PdfService {
     name: 'ADVANCE LASER CLINIC',
     subName: "Dr. Shashi's PHYSIOTHERAPY And Clinical Fitness",
     tagline: "For Pain Free Life......",
-    services: ["SHASHIOTHERAPY", "WEIGHT CULTIVATION", "GENIAL HATLOH"],
+    services: ["PHYSIOTHERAPY", "WEIGHT LOSS CLINIC", "REHABILITATION"],
     doctorName: "Dr. Shashi Pareta",
     qualifications: "B.P.T.M.P.T. (Ortho) Consulting Physiotherapist",
     phone: "88171 44273",
-    email: "Gra-1.shashigurata12@gmail.com",
-    clinicAddress: "9 Plot No.3, Vinayak Arcade, Amrit Palace, Sector-A",
-    residenceAddress: "Apollo D.B. City Main Road, Mr.B.C.M. Planet, Inflore"
+    email: "shashipareta12@gmail.com",
+    clinicAddress: "19-E, Tulsi Nagar Rd, near BCM Paradise, Tulsi Nagar, Nipania, Indore, Madhya Pradesh 453771",
+    
   };
 
   // Format currency with proper Indian formatting
@@ -566,8 +566,6 @@ export class PdfService {
     doc.fontSize(9)
       .text('Clinic Address:', 50, pageHeight - 70)
       .text(this.clinicInfo.clinicAddress, 50, pageHeight - 60)
-      .text('Residence:', 300, pageHeight - 70)
-      .text(this.clinicInfo.residenceAddress, 300, pageHeight - 60);
     
     // Generation info and copyright
     doc.fontSize(8)
@@ -583,7 +581,7 @@ export class PdfService {
     
     // Table header with background color
     doc.rect(50, startY - 10, 500, 25).fill(primaryColor);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000');
     
     headers.forEach((header, i) => {
       doc.text(header, columnPositions[i], startY);
@@ -602,7 +600,7 @@ export class PdfService {
         
         // Add table header again on new page
         doc.rect(50, y - 10, 500, 25).fill(primaryColor);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#FFFFFF');
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('blue');
         headers.forEach((header, i) => {
           doc.text(header, columnPositions[i], y);
         });
@@ -612,7 +610,7 @@ export class PdfService {
       
       // Alternate row background
       if (rowIndex % 2 === 0) {
-        doc.rect(50, y - 5, 500, 20).fill('#f0f8ff');
+        doc.rect(50, y - 5, 500, 20).fill('#f5f5f5').fillColor('#000000');
       }
       
       row.forEach((cell: string, cellIndex: number) => {
