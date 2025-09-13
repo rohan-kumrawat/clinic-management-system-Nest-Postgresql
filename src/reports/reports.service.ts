@@ -1,13 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment } from '../payments/entity/payment.entity';
 import { Doctor } from '../doctors/entity/doctor.entity';
 import { PatientStatus } from 'src/common/enums';
-
-
 
 @Injectable()
 export class ReportsService {
@@ -117,9 +115,12 @@ export class ReportsService {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
 
-      // Calculate total paid and remaining amount
-      const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
-      const remainingAmount = patient.total_amount - totalPaid;
+      // Calculate total paid and remaining amount - FIXED
+      const totalPaid = patient.payments.reduce((sum, payment) => {
+        return sum + parseFloat(payment.amount_paid.toString());
+      }, 0);
+      
+      const remainingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
 
       // Sort sessions by date descending
       const sortedSessions = patient.sessions.sort(
@@ -148,7 +149,6 @@ export class ReportsService {
     }
   }
 
-  
   async getFinancialSummary(startDate: Date, endDate: Date) {
     if (!startDate || !endDate) {
       throw new BadRequestException('Start and end dates are required');
@@ -164,15 +164,15 @@ export class ReportsService {
       adjustedEndDate.setHours(23, 59, 59, 999);
       
       const payments = await this.paymentsRepository
-      .createQueryBuilder('payment')
-      .select('payment.payment_mode', 'paymentMode')
-      .addSelect('SUM(payment.amount_paid)', 'total')
-      .where('payment.payment_date BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate: adjustedEndDate
-      })
-      .groupBy('payment.payment_mode')
-      .getRawMany();
+        .createQueryBuilder('payment')
+        .select('payment.payment_mode', 'paymentMode')
+        .addSelect('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate: adjustedEndDate
+        })
+        .groupBy('payment.payment_mode')
+        .getRawMany();
       
       const totalRevenue = payments.reduce((sum, item) => sum + parseFloat(item.total), 0);
       
@@ -235,7 +235,7 @@ export class ReportsService {
     }
   }
 
-  // 6. NEW: Yearly Financial Report API
+  // Yearly Financial Report API
   async getYearlyFinancialReport(year: number) {
     try {
       if (!year) {
@@ -285,7 +285,7 @@ export class ReportsService {
     }
   }
 
-  // 7. NEW: Pending Payment Patients List API
+  // Pending Payment Patients List API
   async getPendingPaymentPatients() {
     try {
       const patients = await this.patientsRepository.find({
