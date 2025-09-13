@@ -600,7 +600,7 @@ export class PdfService {
         
         // Add table header again on new page
         doc.rect(50, y - 10, 500, 25).fill(primaryColor);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('blue');
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff');
         headers.forEach((header, i) => {
           doc.text(header, columnPositions[i], y);
         });
