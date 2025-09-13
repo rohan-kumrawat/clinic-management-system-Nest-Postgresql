@@ -85,8 +85,10 @@ export class PdfService {
     rows.forEach((row, rowIndex) => {
       // Alternate row background
       if (rowIndex % 2 === 0) {
-        doc.rect(50, y - 5, 500, 20).fill('#f8f9fa');
+        doc.rect(50, y - 5, 500, 20).fill('#f5f5f5');
       }
+
+      doc.fillColor('#000000');
       
       row.forEach((cell: string, cellIndex: number) => {
         doc.text(cell.toString(), columnPositions[cellIndex], y);
