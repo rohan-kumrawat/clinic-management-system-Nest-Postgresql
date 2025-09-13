@@ -3,113 +3,16 @@ import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { Buffer } from 'buffer';
 
-
 @Injectable()
 export class PdfService {
-  // private clinicInfo = {
-  //   name: 'Your Clinic Name',
-  //   address: '123 Clinic Street, City, State - PINCODE',
-  //   phone: '+91-9876543210',
-  //   email: 'info@yourclinic.com'
-  // };
-  // // Common header for all PDF pages
-  // private addHeader(doc: any, title: string) {
-  //   // Clinic information
-  //   doc
-  //     .fillColor('#333333')
-  //     .fontSize(16)
-  //     .text(this.clinicInfo.name, 50, 50, { align: 'center' })
-  //     .fontSize(10)
-  //     .text(this.clinicInfo.address, 50, 70, { align: 'center' })
-  //     .text(`Phone: ${this.clinicInfo.phone} | Email: ${this.clinicInfo.email}`, 50, 85, { align: 'center' });
-    
-  //   // Report title
-  //   doc
-  //     .fontSize(14)
-  //     .text(title, 50, 110, { align: 'center' })
-  //     .moveDown();
-    
-  //   // Horizontal line
-  //   doc
-  //     .moveTo(50, 130)
-  //     .lineTo(550, 130)
-  //     .strokeColor('#cccccc')
-  //     .stroke();
-  // }
+  private clinicInfo = {
+    name: 'Your Clinic Name',
+    address: '123 Clinic Street, City, State - PINCODE',
+    phone: '+91-9876543210',
+    email: 'info@yourclinic.com'
+  };
 
-
-
-    generatePdf(res: any, data: any[]) {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-
-    // Pipe PDF response
-    doc.pipe(res);
-
-    // Har page pe header lagane ke liye
-    this.addHeader(doc);
-
-    // Table generate karna
-    this.generateTable(doc, data);
-
-    // PDF close karna
-    doc.end();
-  }
-
-  // 👉 Yeh function aap replace kar do
-  private addHeader(doc: PDFKit.PDFDocument, title?: string) {
-    // Clinic logo add karo
-    doc.image('public/logo.png', 50, 20, { width: 60 });
-
-    // Clinic name
-    doc.fontSize(16).fillColor('#e74c3c').text('Dr. Shashi\'s PHYSIOTHERAPY', 120, 25);
-    doc.fontSize(10).fillColor('black').text('Advance Laser Clinic', 120, 45);
-
-    // Doctor details
-    doc.fontSize(9).text('Dr. Shashi Pareta (B.P.T, M.P.T Ortho)', 350, 25, { align: 'right' });
-    doc.text('Consulting Physiotherapist', 350, 40, { align: 'right' });
-    doc.text('Mob: 88171 44273', 350, 55, { align: 'right' });
-    doc.text('Email: shashispareta12@gmail.com', 350, 70, { align: 'right' });
-
-    // Line ke niche separator
-    doc.moveTo(50, 90).lineTo(550, 90).stroke();
-    doc.moveDown(2);
-
-    // Optional title
-    if (title) {
-      doc.fontSize(14).fillColor('#333333').text(title, 50, 100, { align: 'center' });
-      doc.moveDown();
-    }
-  }
-
-  private generateTable(doc: PDFKit.PDFDocument, data: any[]) {
-    // Table generate karne ka logic
-    let tableTop = 120;
-    const itemSpacing = 30;
-
-    // Table headers
-    doc.fontSize(10).text('Patient Name', 50, tableTop);
-    doc.text('Treatment', 200, tableTop);
-    doc.text('Doctor', 350, tableTop);
-    doc.text('Revenue', 450, tableTop);
-
-    // Draw line
-    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
-
-    // Table rows
-    let y = tableTop + 25;
-    data.forEach((item) => {
-      doc.fontSize(9).text(item.patientName, 50, y);
-      doc.text(item.treatment, 200, y);
-      doc.text(item.doctor, 350, y);
-      doc.text(item.revenue, 450, y);
-      y += itemSpacing;
-    });
-  }
-
-
-
-
-   // Format currency with proper Indian formatting
+  // Format currency with proper Indian formatting
   private formatCurrency(amount: number): string {
     if (isNaN(amount)) return '₹0.00';
     
@@ -125,6 +28,32 @@ export class PdfService {
   private formatDate(date: Date): string {
     return new Intl.DateTimeFormat('en-IN').format(date);
   }
+
+  // Common header for all PDF pages
+  private addHeader(doc: any, title: string) {
+    // Clinic information
+    doc
+      .fillColor('#333333')
+      .fontSize(16)
+      .text(this.clinicInfo.name, 50, 50, { align: 'center' })
+      .fontSize(10)
+      .text(this.clinicInfo.address, 50, 70, { align: 'center' })
+      .text(`Phone: ${this.clinicInfo.phone} | Email: ${this.clinicInfo.email}`, 50, 85, { align: 'center' });
+    
+    // Report title
+    doc
+      .fontSize(14)
+      .text(title, 50, 110, { align: 'center' })
+      .moveDown();
+    
+    // Horizontal line
+    doc
+      .moveTo(50, 130)
+      .lineTo(550, 130)
+      .strokeColor('#cccccc')
+      .stroke();
+  }
+
   // Common footer for all PDF pages
   private addFooter(doc: any) {
     const pageHeight = doc.page.height;
