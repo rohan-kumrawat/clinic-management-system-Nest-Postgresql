@@ -12,13 +12,11 @@ export class PdfService {
     email: 'info@yourclinic.com'
   };
 
-  // Format currency with proper Indian formatting
+  // Format currency with proper Indian formatting but using INR instead of ₹
   private formatCurrency(amount: number): string {
-    if (isNaN(amount)) return '₹0.00';
+    if (isNaN(amount)) return 'INR 0.00';
     
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
+    return 'INR ' + new Intl.NumberFormat('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
@@ -64,56 +62,43 @@ export class PdfService {
   }
 
   // Draw table with proper formatting
-  private drawTable(doc: any, headers: string[], rows: any[], columnPositions: number[], startY: number) {
+  private drawTable(doc: any, headers: string[], rows: any[], columnPositions: number[], startY: number, currentHeaderTitle: string): number {
     // Table header
     doc.font('Helvetica-Bold').fontSize(10);
     headers.forEach((header, i) => {
       doc.text(header, columnPositions[i], startY);
     });
     
-    // Horizontal line under header
-    doc
-      .moveTo(50, startY + 15)
-      .lineTo(550, startY + 15)
-      .strokeColor('#cccccc')
-      .stroke();
-    
     // Table rows
     doc.font('Helvetica').fontSize(9);
     let y = startY + 20;
     
     rows.forEach((row, rowIndex) => {
-      // Alternate row background
-      if (rowIndex % 2 === 0) {
-        doc.rect(50, y - 5, 500, 20).fill('#f5f5f5');
-      }
-
-      doc.fillColor('#000000');
-      
-      row.forEach((cell: string, cellIndex: number) => {
-        doc.text(cell.toString(), columnPositions[cellIndex], y);
-      });
-      
-      y += 20;
-      
-      // Add page if we're at the bottom
-      if (y > 700 && rowIndex < rows.length - 1) {
+      // Check if we need a new page
+      if (y > 700) {
         doc.addPage();
-        this.addHeader(doc, 'Report Continued');
+        this.addHeader(doc, `${currentHeaderTitle} (Continued)`);
         y = 150;
         
         // Add table header again on new page
         doc.font('Helvetica-Bold').fontSize(10);
         headers.forEach((header, i) => {
-          doc.text(header, columnPositions[i], y - 20);
+          doc.text(header, columnPositions[i], y);
         });
-        
-        doc
-          .moveTo(50, y - 5)
-          .lineTo(550, y - 5)
-          .strokeColor('#cccccc')
-          .stroke();
+        y += 20;
+        doc.font('Helvetica').fontSize(9);
       }
+      
+      // Alternate row background
+      if (rowIndex % 2 === 0) {
+        doc.rect(50, y - 5, 500, 20).fill('#f5f5f5');
+      }
+      
+      row.forEach((cell: string, cellIndex: number) => {
+        doc.text(cell, columnPositions[cellIndex], y);
+      });
+      
+      y += 20;
     });
     
     return y;
@@ -124,6 +109,7 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = 'Dashboard Report';
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -132,7 +118,7 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        this.addHeader(doc, 'Dashboard Report');
+        this.addHeader(doc, currentHeaderTitle);
         
         // Patient Statistics
         doc.fontSize(12).text('Patient Statistics', 50, 150);
@@ -164,6 +150,7 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Doctor-wise Performance Report (${startDate} to ${endDate})`;
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -172,7 +159,7 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        this.addHeader(doc, `Doctor-wise Performance Report (${startDate} to ${endDate})`);
+        this.addHeader(doc, currentHeaderTitle);
         
         // Period information
         doc.fontSize(10).text(`Period: ${startDate} to ${endDate}`, 50, 150);
@@ -187,7 +174,7 @@ export class PdfService {
         ]);
         
         const columnPositions = [50, 250, 350, 450];
-        this.drawTable(doc, headers, rows, columnPositions, 180);
+        this.drawTable(doc, headers, rows, columnPositions, 180, currentHeaderTitle);
 
         this.addFooter(doc);
         doc.end();
@@ -211,8 +198,9 @@ export class PdfService {
         });
 
         const { patient, sessions, payments } = data;
+        const patientHeaderTitle = `Patient History - ${patient.name}`;
         
-        this.addHeader(doc, `Patient History - ${patient.name}`);
+        this.addHeader(doc, patientHeaderTitle);
         
         // Patient Information
         doc.fontSize(12).text('Patient Information', 50, 150);
@@ -222,31 +210,33 @@ export class PdfService {
           .text(`Mobile: ${patient.mobile}`, 50, 220)
           .text(`Status: ${patient.status}`, 50, 240)
           .text(`Assigned Doctor: ${patient.assigned_doctor?.name || 'Not assigned'}`, 50, 260)
-          .text(`Total Amount: ${this.formatCurrency(parseFloat(patient.total_amount.toString()))}`, 50, 280)
+          .text(`Total Amount: ${this.formatCurrency(parseFloat(patient.total_amount))}`, 50, 280)
           .text(`Paid Amount: ${this.formatCurrency(patient.totalPaid)}`, 50, 300)
           .text(`Remaining Amount: ${this.formatCurrency(patient.remainingAmount)}`, 50, 320);
 
         // Sessions Information
         if (sessions && sessions.length > 0) {
           doc.addPage();
-          this.addHeader(doc, `Patient Sessions - ${patient.name}`);
+          const sessionsHeaderTitle = `Patient Sessions - ${patient.name}`;
+          this.addHeader(doc, sessionsHeaderTitle);
           
           const headers = ['Date', 'Doctor', 'Visit Type', 'Remarks'];
           const rows = sessions.map((session: any) => [
             this.formatDate(new Date(session.session_date)),
-            session.doctor?.name || 'N/A',
+            session.doctor.name,
             session.visit_type || 'N/A',
-            (session.remarks || 'No remarks').substring(0, 40) + (session.remarks?.length > 40 ? '...' : '')
+            (session.remarks || 'No remarks').substring(0, 30) + (session.remarks?.length > 30 ? '...' : '')
           ]);
           
           const columnPositions = [50, 120, 250, 350];
-          this.drawTable(doc, headers, rows, columnPositions, 150);
+          this.drawTable(doc, headers, rows, columnPositions, 150, sessionsHeaderTitle);
         }
 
         // Payments Information
         if (payments && payments.length > 0) {
           doc.addPage();
-          this.addHeader(doc, `Payment History - ${patient.name}`);
+          const paymentsHeaderTitle = `Payment History - ${patient.name}`;
+          this.addHeader(doc, paymentsHeaderTitle);
           
           const headers = ['Date', 'Amount Paid', 'Payment Mode', 'Remaining'];
           const rows = payments.map((payment: any) => [
@@ -257,7 +247,7 @@ export class PdfService {
           ]);
           
           const columnPositions = [50, 150, 250, 350];
-          this.drawTable(doc, headers, rows, columnPositions, 150);
+          this.drawTable(doc, headers, rows, columnPositions, 150, paymentsHeaderTitle);
         }
 
         this.addFooter(doc);
@@ -273,6 +263,7 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Financial Summary Report (${startDate} to ${endDate})`;
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -281,15 +272,15 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        this.addHeader(doc, `Financial Summary Report (${startDate} to ${endDate})`);
+        this.addHeader(doc, currentHeaderTitle);
         
         // Period information
-        doc.fontSize(12)
+        doc.fontSize(10)
           .text(`Period: ${startDate} to ${endDate}`, 50, 150)
           .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 170);
         
         // Revenue by payment mode table
-        doc.fontSize(14).text('Revenue by Payment Mode', 50, 200);
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, 200);
         
         const headers = ['Payment Mode', 'Amount'];
         const rows = data.revenueByPaymentMode.map((item: any) => [
@@ -298,7 +289,7 @@ export class PdfService {
         ]);
         
         const columnPositions = [50, 250];
-        this.drawTable(doc, headers, rows, columnPositions, 230);
+        this.drawTable(doc, headers, rows, columnPositions, 230, currentHeaderTitle);
 
         this.addFooter(doc);
         doc.end();
@@ -313,6 +304,9 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+        const currentHeaderTitle = `Monthly Financial Report - ${monthNames[month-1]} ${year}`;
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -321,18 +315,15 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                           'July', 'August', 'September', 'October', 'November', 'December'];
-        
-        this.addHeader(doc, `Monthly Financial Report - ${monthNames[month-1]} ${year}`);
+        this.addHeader(doc, currentHeaderTitle);
         
         // Period information
-        doc.fontSize(12)
+        doc.fontSize(10)
           .text(`Period: ${monthNames[month-1]} ${year}`, 50, 150)
           .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 170);
         
         // Daily Revenue Chart
-        doc.fontSize(14).text('Daily Revenue', 50, 200);
+        doc.fontSize(12).text('Daily Revenue', 50, 200);
         
         const dailyHeaders = ['Date', 'Revenue'];
         const dailyRows = data.dailyRevenue.map((item: any) => [
@@ -341,10 +332,10 @@ export class PdfService {
         ]);
         
         const dailyColumnPositions = [50, 250];
-        let yPosition = this.drawTable(doc, dailyHeaders, dailyRows, dailyColumnPositions, 230);
-        
+        let yPosition = this.drawTable(doc, dailyHeaders, dailyRows, dailyColumnPositions, 230, currentHeaderTitle);
+
         // Revenue by payment mode
-        doc.fontSize(14).text('Revenue by Payment Mode', 50, yPosition + 20);
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, yPosition + 20);
         
         const paymentHeaders = ['Payment Mode', 'Amount'];
         const paymentRows = data.revenueByPaymentMode.map((item: any) => [
@@ -352,7 +343,7 @@ export class PdfService {
           this.formatCurrency(parseFloat(item.total))
         ]);
         
-        this.drawTable(doc, paymentHeaders, paymentRows, [50, 250], yPosition + 50);
+        this.drawTable(doc, paymentHeaders, paymentRows, dailyColumnPositions, yPosition + 50, currentHeaderTitle);
 
         this.addFooter(doc);
         doc.end();
@@ -367,6 +358,7 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = `Yearly Financial Report - ${year}`;
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -375,30 +367,30 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        this.addHeader(doc, `Yearly Financial Report - ${year}`);
+        this.addHeader(doc, currentHeaderTitle);
         
         // Period information
-        doc.fontSize(12)
+        doc.fontSize(10)
           .text(`Year: ${year}`, 50, 150)
           .text(`Total Revenue: ${this.formatCurrency(data.totalRevenue)}`, 50, 170);
         
         // Monthly Revenue Chart
-        doc.fontSize(14).text('Monthly Revenue', 50, 200);
+        doc.fontSize(12).text('Monthly Revenue', 50, 200);
         
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        const headers = ['Month', 'Revenue'];
-        const rows = data.monthlyRevenue.map((item: any) => [
+        const monthlyHeaders = ['Month', 'Revenue'];
+        const monthlyRows = data.monthlyRevenue.map((item: any) => [
           monthNames[parseInt(item.month) - 1],
           this.formatCurrency(parseFloat(item.revenue))
         ]);
         
-        const columnPositions = [50, 250];
-        let yPosition = this.drawTable(doc, headers, rows, columnPositions, 230);
-        
+        const monthlyColumnPositions = [50, 250];
+        let yPosition = this.drawTable(doc, monthlyHeaders, monthlyRows, monthlyColumnPositions, 230, currentHeaderTitle);
+
         // Revenue by payment mode
-        doc.fontSize(14).text('Revenue by Payment Mode', 50, yPosition + 20);
+        doc.fontSize(12).text('Revenue by Payment Mode', 50, yPosition + 20);
         
         const paymentHeaders = ['Payment Mode', 'Amount'];
         const paymentRows = data.revenueByPaymentMode.map((item: any) => [
@@ -406,7 +398,7 @@ export class PdfService {
           this.formatCurrency(parseFloat(item.total))
         ]);
         
-        this.drawTable(doc, paymentHeaders, paymentRows, [50, 250], yPosition + 50);
+        this.drawTable(doc, paymentHeaders, paymentRows, monthlyColumnPositions, yPosition + 50, currentHeaderTitle);
 
         this.addFooter(doc);
         doc.end();
@@ -421,6 +413,7 @@ export class PdfService {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
+        const currentHeaderTitle = 'Pending Payments Report';
         const buffers: any[] = [];
         
         doc.on('data', buffers.push.bind(buffers));
@@ -429,11 +422,11 @@ export class PdfService {
           resolve(pdfData);
         });
 
-        this.addHeader(doc, 'Pending Payments Report');
+        this.addHeader(doc, currentHeaderTitle);
         
         // Summary
         const totalPending = data.reduce((sum: number, patient: any) => sum + patient.pending_amount, 0);
-        doc.fontSize(12)
+        doc.fontSize(10)
           .text(`Total Patients with Pending Payments: ${data.length}`, 50, 150)
           .text(`Total Pending Amount: ${this.formatCurrency(totalPending)}`, 50, 170);
         
@@ -447,7 +440,7 @@ export class PdfService {
         ]);
         
         const columnPositions = [50, 200, 300, 450];
-        this.drawTable(doc, headers, rows, columnPositions, 200);
+        this.drawTable(doc, headers, rows, columnPositions, 200, currentHeaderTitle);
 
         this.addFooter(doc);
         doc.end();
