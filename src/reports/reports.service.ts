@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like } from 'typeorm';
+import { Repository, Between, Like, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment } from '../payments/entity/payment.entity';
 import { Doctor } from '../doctors/entity/doctor.entity';
+import { PatientStatus } from 'src/common/enums';
+
 
 
 @Injectable()
@@ -146,70 +148,7 @@ export class ReportsService {
     }
   }
 
-  async exportData(type: 'patients' | 'sessions' | 'payments', startDate?: Date, endDate?: Date) {
-    try {
-      let data: any[] = [];
-      let whereCondition = {};
-      
-      // Prepare date filter if both dates provided
-      if (startDate && endDate) {
-        if (startDate > endDate) {
-          throw new BadRequestException('Start date cannot be after end date');
-        }
-        
-        // Adjust end date to include the entire day
-        const adjustedEndDate = new Date(endDate);
-        adjustedEndDate.setHours(23, 59, 59, 999);
-        
-        switch (type) {
-          case 'patients':
-            whereCondition = { created_at: Between(startDate, adjustedEndDate) };
-            break;
-          case 'sessions':
-            whereCondition = { session_date: Between(startDate, adjustedEndDate) };
-            break;
-          case 'payments':
-            whereCondition = { payment_date: Between(startDate, adjustedEndDate) };
-            break;
-        }
-      }
-      
-      switch (type) {
-        case 'patients':
-          data = await this.patientsRepository.find({
-            relations: ['assigned_doctor'],
-            where: whereCondition,
-            order: { created_at: 'DESC' },
-          });
-          break;
-          
-        case 'sessions':
-          data = await this.sessionsRepository.find({
-            relations: ['patient', 'doctor'],
-            where: whereCondition,
-            order: { session_date: 'DESC' },
-          });
-          break;
-          
-        case 'payments':
-          data = await this.paymentsRepository.find({
-            relations: ['patient'],
-            where: whereCondition,
-            order: { payment_date: 'DESC' },
-          });
-          break;
-      }
-      
-      return data;
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to export data');
-    }
-  }
-
-  // NEW: Financial summary report
+  
   async getFinancialSummary(startDate: Date, endDate: Date) {
     if (!startDate || !endDate) {
       throw new BadRequestException('Start and end dates are required');
@@ -218,22 +157,22 @@ export class ReportsService {
     if (startDate > endDate) {
       throw new BadRequestException('Start date cannot be after end date');
     }
-
+    
     try {
       // Adjust end date to include the entire day
       const adjustedEndDate = new Date(endDate);
       adjustedEndDate.setHours(23, 59, 59, 999);
       
       const payments = await this.paymentsRepository
-        .createQueryBuilder('payment')
-        .select('payment.payment_mode', 'paymentMode')
-        .addSelect('SUM(payment.amount_paid)', 'total')
-        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
-          startDate,
-          endDate: adjustedEndDate
-        })
-        .groupBy('payment.payment_mode')
-        .getRawMany();
+      .createQueryBuilder('payment')
+      .select('payment.payment_mode', 'paymentMode')
+      .addSelect('SUM(payment.amount_paid)', 'total')
+      .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate: adjustedEndDate
+      })
+      .groupBy('payment.payment_mode')
+      .getRawMany();
       
       const totalRevenue = payments.reduce((sum, item) => sum + parseFloat(item.total), 0);
       
@@ -246,127 +185,135 @@ export class ReportsService {
       throw new BadRequestException('Failed to generate financial summary');
     }
   }
-
-  // Get referral analysis report
-
-  async getReferralAnalysis(startDate?: Date, endDate?: Date): Promise<any> {
-  try {
-    let whereCondition: any = { referred_dr: Like('%') }; // Only patients with referred_dr
-    
-    if (startDate && endDate) {
-      if (startDate > endDate) {
-        throw new BadRequestException('Start date cannot be after end date');
+  
+  async getMonthlyFinancialReport(year: number, month: number) {
+    try {
+      if (!year || !month) {
+        throw new BadRequestException('Year and month are required');
       }
-      whereCondition.created_at = Between(startDate, endDate);
+
+      // Calculate start and end dates for the month
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      endDate.setHours(23, 59, 59, 999);
+
+      // Get daily revenue for the month
+      const dailyRevenue = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('DATE(payment.payment_date)', 'date')
+        .addSelect('SUM(payment.amount_paid)', 'revenue')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate
+        })
+        .groupBy('DATE(payment.payment_date)')
+        .orderBy('date', 'ASC')
+        .getRawMany();
+
+      // Get revenue by payment mode for the month
+      const revenueByPaymentMode = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('payment.payment_mode', 'paymentMode')
+        .addSelect('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate
+        })
+        .groupBy('payment.payment_mode')
+        .getRawMany();
+
+      const totalRevenue = revenueByPaymentMode.reduce((sum, item) => sum + parseFloat(item.total), 0);
+
+      return {
+        period: { year, month },
+        dailyRevenue,
+        revenueByPaymentMode,
+        totalRevenue
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to generate monthly financial report');
     }
-    
-    const referredPatients = await this.patientsRepository.find({
-      where: whereCondition,
-      relations: ['assigned_doctor'],
-      order: { referred_dr: 'ASC' }
-    });
-    
-    // Group by referred doctor
-    const referralStats: { [key: string]: { count: number, patients: any[] } } = {};
-    
-    referredPatients.forEach(patient => {
-      if (!referralStats[patient.referred_dr]) {
-        referralStats[patient.referred_dr] = {
-          count: 0,
-          patients: []
-        };
-      }
-      
-      referralStats[patient.referred_dr].count += 1;
-      referralStats[patient.referred_dr].patients.push({
-        id: patient.patient_id,
-        name: patient.name,
-        mobile: patient.mobile,
-        assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
-        created_at: patient.created_at
-      });
-    });
-    
-    // Convert to array and sort by count descending
-    const result = Object.entries(referralStats)
-      .map(([referred_dr, stats]) => ({
-        referred_dr,
-        patient_count: stats.count,
-        patients: stats.patients
-      }))
-      .sort((a, b) => b.patient_count - a.patient_count);
-    
-    return result;
-  } catch (error) {
-    if (error instanceof BadRequestException) {
-      throw error;
-    }
-    throw new BadRequestException('Failed to generate referral analysis report');
   }
-}
 
-/**
- * Get doctor referral performance - which of our doctors received how many referred patients
- */
-async getDoctorReferralPerformance(startDate?: Date, endDate?: Date): Promise<any> {
-  try {
-    let whereCondition: any = { referred_dr: Like('%') }; // Only patients with referred_dr
-    
-    if (startDate && endDate) {
-      if (startDate > endDate) {
-        throw new BadRequestException('Start date cannot be after end date');
+  // 6. NEW: Yearly Financial Report API
+  async getYearlyFinancialReport(year: number) {
+    try {
+      if (!year) {
+        throw new BadRequestException('Year is required');
       }
-      whereCondition.created_at = Between(startDate, endDate);
+
+      // Calculate start and end dates for the year
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31);
+      endDate.setHours(23, 59, 59, 999);
+
+      // Get monthly revenue for the year
+      const monthlyRevenue = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('EXTRACT(MONTH FROM payment.payment_date)', 'month')
+        .addSelect('SUM(payment.amount_paid)', 'revenue')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate
+        })
+        .groupBy('EXTRACT(MONTH FROM payment.payment_date)')
+        .orderBy('month', 'ASC')
+        .getRawMany();
+
+      // Get revenue by payment mode for the year
+      const revenueByPaymentMode = await this.paymentsRepository
+        .createQueryBuilder('payment')
+        .select('payment.payment_mode', 'paymentMode')
+        .addSelect('SUM(payment.amount_paid)', 'total')
+        .where('payment.payment_date BETWEEN :startDate AND :endDate', {
+          startDate,
+          endDate
+        })
+        .groupBy('payment.payment_mode')
+        .getRawMany();
+
+      const totalRevenue = revenueByPaymentMode.reduce((sum, item) => sum + parseFloat(item.total), 0);
+
+      return {
+        year,
+        monthlyRevenue,
+        revenueByPaymentMode,
+        totalRevenue
+      };
+    } catch (error) {
+      throw new BadRequestException('Failed to generate yearly financial report');
     }
-    
-    const referredPatients = await this.patientsRepository.find({
-      where: whereCondition,
-      relations: ['assigned_doctor'],
-      order: { assigned_doctor: 'ASC' }
-    });
-    
-    // Group by assigned doctor
-    const doctorStats: { [key: string]: { count: number, patients: any[] } } = {
-      'Not Assigned': { count: 0, patients: [] }
-    };
-    
-    referredPatients.forEach(patient => {
-      const doctorKey = patient.assigned_doctor ? 
-        `${patient.assigned_doctor.name} (ID: ${patient.assigned_doctor.doctor_id})` : 
-        'Not Assigned';
-      
-      if (!doctorStats[doctorKey]) {
-        doctorStats[doctorKey] = {
-          count: 0,
-          patients: []
-        };
-      }
-      
-      doctorStats[doctorKey].count += 1;
-      doctorStats[doctorKey].patients.push({
-        id: patient.patient_id,
-        name: patient.name,
-        mobile: patient.mobile,
-        referred_dr: patient.referred_dr,
-        created_at: patient.created_at
-      });
-    });
-    
-    // Convert to array and sort by count descending
-    const result = Object.entries(doctorStats)
-      .map(([doctor, stats]) => ({
-        doctor,
-        referred_patient_count: stats.count,
-        patients: stats.patients
-      }))
-      .sort((a, b) => b.referred_patient_count - a.referred_patient_count);
-    
-    return result;
-  } catch (error) {
-    if (error instanceof BadRequestException) {
-      throw error;
-    }
-    throw new BadRequestException('Failed to generate doctor referral performance report');
   }
-}
+
+  // 7. NEW: Pending Payment Patients List API
+  async getPendingPaymentPatients() {
+    try {
+      const patients = await this.patientsRepository.find({
+        relations: ['payments', 'assigned_doctor'],
+        where: { status: PatientStatus.ACTIVE }
+      });
+
+      const pendingPaymentPatients = patients.map(patient => {
+        const totalPaid = patient.payments.reduce((sum, payment) => {
+          return sum + parseFloat(payment.amount_paid.toString());
+        }, 0);
+        
+        const pendingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
+
+        return {
+          patient_id: patient.patient_id,
+          name: patient.name,
+          mobile: patient.mobile,
+          assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
+          total_amount: patient.total_amount,
+          paid_amount: totalPaid,
+          pending_amount: pendingAmount > 0 ? pendingAmount : 0
+        };
+      }).filter(patient => patient.pending_amount > 0);
+
+      return pendingPaymentPatients;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch pending payment patients');
+    }
+  }
 }
