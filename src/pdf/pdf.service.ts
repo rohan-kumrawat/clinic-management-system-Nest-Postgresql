@@ -512,16 +512,16 @@ export class PdfService {
     const boxHeight = 25;
     
     // First box - Blue background
-    doc.rect(50, boxY, boxWidth, boxHeight).fill(primaryColor);
+    doc.rect(50, boxY, boxWidth, boxHeight).fill('#d24e01');
     doc.fillColor('#FFFFFF').fontSize(10).text(this.clinicInfo.services[0], 55, boxY + 8);
     
     // Second box - Gold background
-    doc.rect(210, boxY, boxWidth, boxHeight).fill(secondaryColor);
-    doc.fillColor('#000000').fontSize(10).text(this.clinicInfo.services[1], 215, boxY + 8);
+    doc.rect(210, boxY, boxWidth, boxHeight).fill('#d24e01');
+    doc.fillColor('#FFFFFF').fontSize(10).text(this.clinicInfo.services[1], 215, boxY + 8);
     
     // Third box - Light blue background
-    doc.rect(370, boxY, boxWidth, boxHeight).fill('#a4c8f0');
-    doc.fillColor('#000000').fontSize(10).text(this.clinicInfo.services[2], 375, boxY + 8);
+    doc.rect(370, boxY, boxWidth, boxHeight).fill('#d24e01');
+    doc.fillColor('#FFFFFF').fontSize(10).text(this.clinicInfo.services[2], 375, boxY + 8);
     
     // Reset text color
     doc.fillColor('#000000');
