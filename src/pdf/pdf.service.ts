@@ -497,10 +497,10 @@ export class PdfService {
     // Clinic information - Top section
     doc
       .fillColor(primaryColor)
-      .fontSize(15)
+      .fontSize(12)
       .font('Helvetica-Bold')
       .text(this.clinicInfo.name, 50, 40, { align: 'center' })
-      .fontSize(25)
+      .fontSize(18)
       .font('Helvetica')
       .text(this.clinicInfo.subName, 50, 65, { align: 'center' })
       .fontSize(10)
