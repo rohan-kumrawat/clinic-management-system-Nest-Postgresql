@@ -137,6 +137,11 @@ export class PatientsService {
       return savedPatient;
     } catch (error) {
       console.error('Error creating patient:', error);
+
+      if (error.code === '23505' && error.detail.includes('reg_no')) {
+        throw new Error('Registration number already exists. Please use a unique reg_no.');
+      }
+      
       throw new Error('Failed to create patient. Please check your data.');
     }
   }
@@ -239,53 +244,59 @@ export class PatientsService {
   }
 
   private buildFindQuery(
-    userRole: UserRole,
-    filters: {
-      name?: string;
-      doctorId?: number;
-      status?: PatientStatus;
-      visitType?: VisitType;
-      paymentStatus?: PaymentStatus;
-    },
-  ) {
-    // Start building the query
-    const queryBuilder = this.patientsRepository
-      .createQueryBuilder('patient')
-      .leftJoin('patient.assigned_doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name']) // Select only necessary fields
-      // .leftJoinAndSelect('patient.payments', 'payments')
-      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
+  userRole: UserRole,
+  filters: {
+    name?: string;
+    reg_no?: string; // Naya filter add karein
+    doctorId?: number;
+    status?: PatientStatus;
+    visitType?: VisitType;
+    paymentStatus?: PaymentStatus;
+  },
+) {
+  // Start building the query
+  const queryBuilder = this.patientsRepository
+    .createQueryBuilder('patient')
+    .leftJoin('patient.assigned_doctor', 'doctor')
+    .addSelect(['doctor.doctor_id', 'doctor.name'])
+    .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
 
-    // Apply role-based filter (Receptionist can only see ACTIVE patients)
-    if (userRole === UserRole.RECEPTIONIST) {
-      queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
-    }
-
-    // Apply other filters dynamically
-    if (filters.name) {
-      queryBuilder.andWhere('patient.name ILIKE :name', { name: `%${filters.name}%` });
-    }
-
-    if (filters.doctorId) {
-      queryBuilder.andWhere('patient.assigned_doctor_id = :doctorId', { doctorId: filters.doctorId });
-    }
-
-    if (filters.status) {
-      queryBuilder.andWhere('patient.status = :status', { status: filters.status });
-    }
-
-    if (filters.visitType) {
-      queryBuilder.andWhere('patient.visit_type = :visitType', { visitType: filters.visitType });
-    }
-
-    return queryBuilder;
+  // Apply role-based filter
+  if (userRole === UserRole.RECEPTIONIST) {
+    queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
   }
+
+  // Apply other filters dynamically
+  if (filters.name) {
+    queryBuilder.andWhere('patient.name ILIKE :name', { name: `%${filters.name}%` });
+  }
+
+  // reg_no filter
+  if (filters.reg_no) {
+    queryBuilder.andWhere('patient.reg_no ILIKE :reg_no', { reg_no: `%${filters.reg_no}%` });
+  }
+
+  if (filters.doctorId) {
+    queryBuilder.andWhere('patient.assigned_doctor_id = :doctorId', { doctorId: filters.doctorId });
+  }
+
+  if (filters.status) {
+    queryBuilder.andWhere('patient.status = :status', { status: filters.status });
+  }
+
+  if (filters.visitType) {
+    queryBuilder.andWhere('patient.visit_type = :visitType', { visitType: filters.visitType });
+  }
+
+  return queryBuilder;
+}
 
   async findAll(
     userRole: UserRole,
     page: number = 1,
     limit: number = 10,
     name?: string,
+    reg_no?: string,
     doctorId?: number,
     status?: PatientStatus,
     visitType?: VisitType,
@@ -294,6 +305,7 @@ export class PatientsService {
     try {
       const queryBuilder = this.buildFindQuery(userRole, {
         name,
+        reg_no,
         doctorId,
         status,
         visitType,
@@ -362,6 +374,7 @@ export class PatientsService {
     page: number = 1,
     limit: number = 10,
     name?: string,
+    reg_no?: string,
     doctorId?: number,
     visitType?: VisitType,
     paymentStatus?: PaymentStatus,
@@ -379,6 +392,10 @@ export class PatientsService {
       // Apply other filters dynamically
       if (name) {
         queryBuilder.andWhere('patient.name ILIKE :name', { name: `%${name}%` });
+      }
+
+      if(reg_no) {
+        queryBuilder.andWhere('patient.reg_no ILIKE :reg_no', { reg_no: `%${reg_no}%` } );
       }
 
       if (doctorId) {

@@ -25,33 +25,6 @@ interface AuthenticatedRequest extends Request {
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) { }
 
-  // @Post()
-  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  // async create(@Body() patientData: Partial<Patient>): Promise<Patient> {
-  //   try {
-  //     return await this.patientsService.create(patientData);
-  //   } catch (error) {
-  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-
-  // @Put(':id')
-  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  // async update(
-  //   @Param('id') id: string,
-  //   @Body() updateData: Partial<Patient>,
-  //   @Req() request: AuthenticatedRequest
-  // ): Promise<Patient> {
-  //   try {
-  //     const userRole = request.user.role;
-  //     return await this.patientsService.update(+id, updateData, userRole);
-  //   } catch (error) {
-  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
-
-
    @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async create(@Body() patientData: CreatePatientDto): Promise<Patient> {
@@ -77,60 +50,113 @@ export class PatientsController {
     }
   }
 
+  // @Get()
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // async findAll(
+  //   @Req() request: AuthenticatedRequest,
+  //   @Query('page', ParseIntPipe) page: number = 1,
+  //   @Query('limit', ParseIntPipe) limit: number = 10,
+  //   @Query('name') name?: string,
+  //   @Query('reg_no') reg_no?: string,
+  //   @Query('doctorId') doctorId?: number,
+  //   @Query('status') status?: PatientStatus,
+  //   @Query('visitType') visitType?: VisitType,
+  //   @Query('paymentStatus') paymentStatus?: PaymentStatus,
+  // ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+  //   try {
+  //     // validate enum value if provided
+  //     if (status && !Object.values(PatientStatus).includes(status)) {
+  //       throw new BadRequestException('invalid status value');
+  //     }
+  //     if (visitType && !Object.values(VisitType).includes(visitType)) {
+  //       throw new BadRequestException('Invalid visitType value');
+  //     }
+  //     if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
+  //       throw new BadRequestException('Invalid paymentStatus value');
+  //     }
+
+
+  //     const userRole = request.user.role;
+  //     return await this.patientsService.findAll(userRole, page, limit, name, doctorId, status, visitType, paymentStatus);
+  //   } catch (error) {
+  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  //   }
+  // }
+
+
+  //  @Get('active')
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // async findAllActive(
+  //   @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+  //   @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
+  //   @Query('name') name?: string,
+  //   @Query('doctorId', new ParseIntPipe({ optional: true })) doctorId?: number,
+  //   @Query('visitType') visitType?: VisitType,
+  //   @Query('paymentStatus') paymentStatus?: PaymentStatus,
+  // ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  //   return this.patientsService.findAllActive(
+  //     page,
+  //     limit,
+  //     name,
+  //     doctorId,
+  //     visitType,
+  //     paymentStatus,
+  //   );
+  // }
+
+
   @Get()
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async findAll(
-    @Req() request: AuthenticatedRequest,
-    @Query('page', ParseIntPipe) page: number = 1,
-    @Query('limit', ParseIntPipe) limit: number = 10,
-    @Query('name') name?: string,
-    @Query('doctorId') doctorId?: number,
-    @Query('status') status?: PatientStatus,
-    @Query('visitType') visitType?: VisitType,
-    @Query('paymentStatus') paymentStatus?: PaymentStatus,
-  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
-    try {
-      // validate enum value if provided
-      if (status && !Object.values(PatientStatus).includes(status)) {
-        throw new BadRequestException('invalid status value');
-      }
-      if (visitType && !Object.values(VisitType).includes(visitType)) {
-        throw new BadRequestException('Invalid visitType value');
-      }
-      if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
-        throw new BadRequestException('Invalid paymentStatus value');
-      }
-
-
-      const userRole = request.user.role;
-      return await this.patientsService.findAll(userRole, page, limit, name, doctorId, status, visitType, paymentStatus);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
-
-
-   @Get('active')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async findAllActive(
-    @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
-    @Query('name') name?: string,
-    @Query('doctorId', new ParseIntPipe({ optional: true })) doctorId?: number,
-    @Query('visitType') visitType?: VisitType,
-    @Query('paymentStatus') paymentStatus?: PaymentStatus,
-  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
-    return this.patientsService.findAllActive(
-      page,
-      limit,
-      name,
-      doctorId,
-      visitType,
-      paymentStatus,
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async findAll(
+  @Req() request: AuthenticatedRequest,
+  @Query('page', ParseIntPipe) page: number = 1,
+  @Query('limit', ParseIntPipe) limit: number = 10,
+  @Query('name') name?: string,
+  @Query('reg_no') reg_no?: string, // Naya query parameter
+  @Query('doctorId') doctorId?: number,
+  @Query('status') status?: PatientStatus,
+  @Query('visitType') visitType?: VisitType,
+  @Query('paymentStatus') paymentStatus?: PaymentStatus,
+): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+  try {
+    const userRole = request.user.role;
+    return await this.patientsService.findAll(
+      userRole, 
+      page, 
+      limit, 
+      name, 
+      reg_no, // Naya parameter pass karein
+      doctorId, 
+      status, 
+      visitType, 
+      paymentStatus
     );
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
   }
+}
 
-
+  @Get('active')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async findAllActive(
+  @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+  @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
+  @Query('name') name?: string,
+  @Query('reg_no') reg_no?: string, // Naya query parameter
+  @Query('doctorId', new ParseIntPipe({ optional: true })) doctorId?: number,
+  @Query('visitType') visitType?: VisitType,
+  @Query('paymentStatus') paymentStatus?: PaymentStatus,
+): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  return this.patientsService.findAllActive(
+    page,
+    limit,
+    name,
+    reg_no, // Naya parameter pass karein
+    doctorId,
+    visitType,
+    paymentStatus,
+  );
+}
 
   @Post(':id/upload')
   @UseInterceptors(FileInterceptor('file'))

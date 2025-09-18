@@ -6,7 +6,7 @@ export class CreatePatientDto {
   @IsNumber()
   serial_no?: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   reg_no?: string;
 

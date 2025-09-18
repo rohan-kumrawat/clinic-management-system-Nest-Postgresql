@@ -13,7 +13,7 @@ export class Patient {
   @Column({ nullable: true })
   serial_no: number;
 
-  @Column({ nullable: true })
+  @Column({ unique: true })
   reg_no: string;
 
   @Column()
