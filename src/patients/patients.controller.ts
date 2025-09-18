@@ -8,7 +8,9 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
-import { PatientStatus, VisitType, PaymentStatus } from 'src/common/enums';
+import { PatientStatus, VisitType, PaymentStatus, Gender } from 'src/common/enums';
+import { CreatePatientDto } from './dto/create-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -23,9 +25,36 @@ interface AuthenticatedRequest extends Request {
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) { }
 
-  @Post()
+  // @Post()
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // async create(@Body() patientData: Partial<Patient>): Promise<Patient> {
+  //   try {
+  //     return await this.patientsService.create(patientData);
+  //   } catch (error) {
+  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  //   }
+  // }
+
+
+  // @Put(':id')
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // async update(
+  //   @Param('id') id: string,
+  //   @Body() updateData: Partial<Patient>,
+  //   @Req() request: AuthenticatedRequest
+  // ): Promise<Patient> {
+  //   try {
+  //     const userRole = request.user.role;
+  //     return await this.patientsService.update(+id, updateData, userRole);
+  //   } catch (error) {
+  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  //   }
+  // }
+
+
+   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async create(@Body() patientData: Partial<Patient>): Promise<Patient> {
+  async create(@Body() patientData: CreatePatientDto): Promise<Patient> {
     try {
       return await this.patientsService.create(patientData);
     } catch (error) {
@@ -33,6 +62,20 @@ export class PatientsController {
     }
   }
 
+  @Put(':id')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async update(
+    @Param('id') id: string,
+    @Body() updateData: UpdatePatientDto,
+    @Req() request: AuthenticatedRequest
+  ): Promise<Patient> {
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.update(+id, updateData, userRole);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -89,37 +132,6 @@ export class PatientsController {
 
 
 
-//   @Get('active')
-// @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-// async findAllActive(
-//   @Query('name') name?: string,
-//   @Query('page', ParseIntPipe) page: number = 1,
-//   @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
-//   @Query('doctorId', ParseIntPipe) doctorId?: number,
-//   @Query('visitType') visitType?: string, // Change to string temporarily
-//   @Query('paymentStatus') paymentStatus?: PaymentStatus,
-// ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
-//   try {
-//     // Convert string to VisitType enum if provided
-//     let visitTypeEnum: VisitType | undefined;
-//     if (visitType) {
-//       if (!Object.values(VisitType).includes(visitType as VisitType)) {
-//         throw new BadRequestException('Invalid visitType value');
-//       }
-//       visitTypeEnum = visitType as VisitType;
-//     }
-
-//     // Validate paymentStatus if provided
-//     if (paymentStatus && !Object.values(PaymentStatus).includes(paymentStatus)) {
-//       throw new BadRequestException('Invalid paymentStatus value');
-//     }
-
-//     return await this.patientsService.findAllActive(page, limit, name, doctorId, visitTypeEnum, paymentStatus);
-//   } catch (error) {
-//     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-//   }
-// }
-
   @Post(':id/upload')
   @UseInterceptors(FileInterceptor('file'))
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -164,20 +176,7 @@ export class PatientsController {
     }
   }
 
-  @Put(':id')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async update(
-    @Param('id') id: string,
-    @Body() updateData: Partial<Patient>,
-    @Req() request: AuthenticatedRequest
-  ): Promise<Patient> {
-    try {
-      const userRole = request.user.role;
-      return await this.patientsService.update(+id, updateData, userRole);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }
+  
 
   @Delete(':id')
   @Roles(UserRole.OWNER)

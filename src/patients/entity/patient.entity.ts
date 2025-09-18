@@ -3,24 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDat
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
-import { PatientStatus, VisitType } from '../../common/enums';
-
-// export enum PatientStatus {
-//   ACTIVE = 'active',
-//   INACTIVE = 'inactive',
-//   DISCHARGED = 'discharged',
-// }
-
-// export enum VisitType {
-//   HOME = 'home',
-//   CLINIC = 'clinic',
-// }
-
-// export enum PaymentStatusFilter {
-//   UNPAID = 'unpaid',
-//   PARTIALLY_PAID = 'partiallyPaid',
-//   FULLY_PAID = 'fullyPaid',
-// }
+import { PatientStatus, VisitType, Gender } from '../../common/enums';
 
 @Entity('patients')
 export class Patient {
@@ -91,6 +74,12 @@ export class Patient {
   })
   visit_type: VisitType;
 
+  @Column({
+    type: 'enum',
+    enum: Gender
+    })
+    gender: Gender;
+    
   @CreateDateColumn()
   created_at: Date;
 

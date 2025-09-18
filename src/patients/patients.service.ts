@@ -4,7 +4,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, ILike, SelectQueryBuilder, Brackets } from 'typeorm';
 import { Patient } from './entity/patient.entity';
 import { UserRole } from '../auth/entity/user.entity';
-import { PatientStatus, PaymentStatus, VisitType } from 'src/common/enums';
+import { PatientStatus, PaymentStatus, VisitType, Gender } from 'src/common/enums';
+import { UpdatePatientDto } from './dto/update-patient.dto';
+import { CreatePatientDto } from './dto/create-patient.dto';
+
 
 @Injectable()
 export class PatientsService {
@@ -13,16 +16,102 @@ export class PatientsService {
     private patientsRepository: Repository<Patient>,
   ) { }
 
-  async create(patientData: Partial<Patient>): Promise<Patient> {
+  // async create(patientData: Partial<Patient>): Promise<Patient> {
+  //   try {
+  //     // Debugging: Log what we're receiving
+  //     console.log('Received patientData:', patientData);
+      
+  //     // Handle the assigned_doctor object from frontend
+  //     if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
+  //       const doctorData = patientData.assigned_doctor as any;
+        
+  //       // Extract doctor ID from the object (could be 'id' or 'doctor_id')
+  //       const doctorId = doctorData.id || doctorData.doctor_id;
+        
+  //       console.log('Extracted doctorId:', doctorId);
+        
+  //       if (doctorId) {
+  //         // Create a minimal doctor object with just the ID for database relation
+  //         patientData.assigned_doctor = { doctor_id: doctorId } as any;
+  //       } else {
+  //         // If no valid ID found, set to null
+  //         patientData.assigned_doctor = null;
+  //       }
+
+  //        // Gender validation
+  //       if (patientData.gender && !Object.values(Gender).includes(patientData.gender)) {
+  //         throw new Error('Invalid gender value. Must be male, female or other');
+  //       }
+  //     }
+
+  //     // Debugging: Log what we're saving
+  //     console.log('Saving patientData:', patientData);
+      
+  //     const patient = this.patientsRepository.create(patientData);
+  //     const savedPatient = await this.patientsRepository.save(patient);
+      
+  //     // Debugging: Log what was saved
+  //     console.log('Saved patient:', savedPatient);
+      
+  //     return savedPatient;
+  //   } catch (error) {
+  //     console.error('Error creating patient:', error);
+  //     throw new Error('Failed to create patient. Please check your data.');
+  //   }
+  // }
+
+  // async update(id: number, updateData: Partial<Patient>, userRole: UserRole | null = null): Promise<Patient> {
+  //   try {
+  //     await this.findOne(id, userRole);
+
+  //     // Handle the assigned_doctor object in update as well
+  //     if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
+  //       const doctorData = updateData.assigned_doctor as any;
+  //       const doctorId = doctorData.id || doctorData.doctor_id;
+        
+  //       if (doctorId) {
+  //         updateData.assigned_doctor = { doctor_id: doctorId } as any;
+  //       } else {
+  //         updateData.assigned_doctor;
+  //       }
+  //     }
+
+  //      // Gender validation for updates
+  //     if (updateData.gender && !Object.values(Gender).includes(updateData.gender)) {
+  //       throw new Error('Invalid gender value. Must be male, female or other');
+  //     }
+
+  //     if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined)) {
+  //       const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+  //       if (!patient) {
+  //         throw new NotFoundException(`Patient with ID ${id} not found`);
+  //       }
+  //       const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
+  //       const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
+
+  //       if (newTotalSessions > 0) {
+  //         updateData.per_session_amount = newTotalAmount / newTotalSessions;
+  //       }
+  //     }
+
+  //     await this.patientsRepository.update(id, updateData);
+  //     return this.findOne(id, userRole);
+  //   } catch (error) {
+  //     console.error('Error updating patient:', error);
+  //     throw new Error('Failed to update patient');
+  //   }
+  // }
+
+
+
+  async create(patientData: CreatePatientDto): Promise<Patient> {
     try {
       // Debugging: Log what we're receiving
       console.log('Received patientData:', patientData);
       
-      // Handle the assigned_doctor object from frontend
+      // Handle the assigned_doctor object from frontend (SAME AS BEFORE)
       if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
         const doctorData = patientData.assigned_doctor as any;
-        
-        // Extract doctor ID from the object (could be 'id' or 'doctor_id')
         const doctorId = doctorData.id || doctorData.doctor_id;
         
         console.log('Extracted doctorId:', doctorId);
@@ -32,7 +121,7 @@ export class PatientsService {
           patientData.assigned_doctor = { doctor_id: doctorId } as any;
         } else {
           // If no valid ID found, set to null
-          patientData.assigned_doctor;
+          patientData.assigned_doctor = null;
         }
       }
 
@@ -52,36 +141,47 @@ export class PatientsService {
     }
   }
 
-  async update(id: number, updateData: Partial<Patient>, userRole: UserRole | null = null): Promise<Patient> {
-    try {
-      await this.findOne(id, userRole);
+  async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
+  try {
+    await this.findOne(id, userRole);
 
-      // Handle the assigned_doctor object in update as well
-      if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
-        const doctorData = updateData.assigned_doctor as any;
-        const doctorId = doctorData.id || doctorData.doctor_id;
+    // Handle the assigned_doctor object in update as well
+    if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
+      const doctorData = updateData.assigned_doctor as any;
+      const doctorId = doctorData.id || doctorData.doctor_id;
+      
+      if (doctorId) {
+        updateData.assigned_doctor = { doctor_id: doctorId } as any;
+      } else {
+        updateData.assigned_doctor = null;
+      }
+    }
+
+    // Calculate per_session_amount if needed
+    if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined)) {
+      const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
+      
+      const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
+      const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
+
+      if (newTotalSessions > 0) {
+        // Calculate per_session_amount but don't add to updateData
+        const perSessionAmount = newTotalAmount / newTotalSessions;
         
-        if (doctorId) {
-          updateData.assigned_doctor = { doctor_id: doctorId } as any;
-        } else {
-          updateData.assigned_doctor;
-        }
+        // Use repository query to update the calculated field
+        await this.patientsRepository.update(id, {
+          ...updateData,
+          per_session_amount: perSessionAmount
+        });
+        
+        return this.findOne(id, userRole);
       }
+    }
 
-      // ... rest of your update logic
-      if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined)) {
-        const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
-        if (!patient) {
-          throw new NotFoundException(`Patient with ID ${id} not found`);
-        }
-        const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
-        const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
-
-        if (newTotalSessions > 0) {
-          updateData.per_session_amount = newTotalAmount / newTotalSessions;
-        }
-      }
-
+    // If no calculation needed, proceed with normal update
       await this.patientsRepository.update(id, updateData);
       return this.findOne(id, userRole);
     } catch (error) {
@@ -89,12 +189,7 @@ export class PatientsService {
       throw new Error('Failed to update patient');
     }
   }
-
-  // ... REST OF THE CODE REMAINS EXACTLY THE SAME AS IN YOUR ORIGINAL FILE ...
-  // Only the create and update methods have been modified above
-  // All other methods (findOne, remove, buildFindQuery, findAll, findAllActive, etc.)
-  // remain unchanged from your original code
-
+  
   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       let patient: Patient | null;

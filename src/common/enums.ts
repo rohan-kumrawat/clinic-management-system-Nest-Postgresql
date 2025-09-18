@@ -18,3 +18,9 @@ export enum PaymentStatus {
   PARTIALLY_PAID = 'partiallyPaid',
   FULLY_PAID = 'fullyPaid',
 }
+
+export enum Gender {
+  MALE = 'male',
+  FEMALE = 'female',
+  OTHER = 'other'
+}
