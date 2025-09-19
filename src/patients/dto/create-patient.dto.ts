@@ -35,6 +35,14 @@ export class CreatePatientDto {
   @IsNotEmpty()
   package_name: string;
 
+  @IsOptional()
+  @IsNumber()
+  released_sessions?: number;
+
+  @IsOptional()
+  @IsNumber()
+  carry_amount?: number;
+
   @IsNumber()
   @Min(0)
   original_amount: number;
@@ -68,4 +76,9 @@ export class CreatePatientDto {
 
   @IsEnum(Gender)
   gender: Gender;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  per_session_amount?: number;
 }

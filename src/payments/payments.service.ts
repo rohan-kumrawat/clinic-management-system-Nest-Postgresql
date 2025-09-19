@@ -7,6 +7,8 @@ import { SessionsService } from '../sessions/sessions.service';
 import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { User } from '../auth/entity/user.entity';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -15,22 +17,26 @@ export class PaymentsService {
   constructor(
     @InjectRepository(Payment)
     private paymentsRepository: Repository<Payment>,
+    @InjectRepository(Patient)
+    private patientsRepository: Repository<Patient>,
     private patientsService: PatientsService,
     private sessionsService: SessionsService,
   ) { }
 
-  async create(paymentData: {
-    patient: { patient_id: number };
-    session?: { session_id: number };
-    created_by: { id: number };
-    amount_paid: number;
-    payment_mode?: PaymentMode;
-    remarks?: string;
-    payment_date: Date;
-  }): Promise<any> {   // 👈 return type 'any' so that filtered object return ho
+  async create(createPaymentDto: CreatePaymentDto): Promise<any> {
     try {
-      this.logger.debug(`Creating payment for patient ID: ${paymentData.patient.patient_id}`);
-      this.logger.debug(`Payment data: ${JSON.stringify(paymentData)}`);
+      this.logger.debug(`Creating payment for patient ID: ${createPaymentDto.patient.patient_id}`);
+      
+      // Convert DTO to the format expected by your existing logic
+      const paymentData = {
+        patient: { patient_id: createPaymentDto.patient.patient_id },
+        session: createPaymentDto.session ? { session_id: createPaymentDto.session.session_id } : undefined,
+        created_by: { id: createPaymentDto.created_by.id },
+        amount_paid: createPaymentDto.amount_paid,
+        payment_mode: createPaymentDto.payment_mode,
+        remarks: createPaymentDto.remarks,
+        payment_date: new Date(createPaymentDto.payment_date)
+      };
 
       // Verify patient exists
       const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
@@ -62,10 +68,21 @@ export class PaymentsService {
         throw new BadRequestException('Payment amount must be greater than zero.');
       }
 
-      // Calculate remaining amount
+      // Calculate total paid including this payment
       let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
+      totalPaid += paymentData.amount_paid;
+
+      // Calculate remaining amount
       const patientTotal = patient.total_amount || 0;
-      const remainingAmount = patientTotal - (totalPaid + paymentData.amount_paid);
+      const remainingAmount = patientTotal - totalPaid;
+
+      // Calculate released sessions and carry amount
+      const totalAvailableAmount = patient.carry_amount + paymentData.amount_paid;
+      const perSessionAmount = patient.per_session_amount || patientTotal / (patient.total_sessions || 1);
+      
+      const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
+      const newCarryAmount = totalAvailableAmount % perSessionAmount;
+      const newReleasedSessions = patient.released_sessions + sessionsToRelease;
 
       // Create payment entity
       const payment = new Payment();
@@ -80,19 +97,25 @@ export class PaymentsService {
 
       const savedPayment = await this.paymentsRepository.save(payment);
 
+      // Update patient with new released_sessions and carry_amount
+      await this.patientsRepository.update(patient.patient_id, {
+        released_sessions: newReleasedSessions,
+        carry_amount: newCarryAmount
+      });
+
       // ✅ Filtered response
       return {
         payment_id: savedPayment.payment_id,
         patient: {
           patient_id: patient.patient_id,
           name: patient.name,
+          released_sessions: newReleasedSessions,
+          carry_amount: newCarryAmount
         },
-        session: sessionEntity
-          ? {
-            session_id: sessionEntity.session_id,
-            name: (sessionEntity as any).name || null,
-          }
-          : null,
+        session: sessionEntity ? {
+          session_id: sessionEntity.session_id,
+          name: (sessionEntity as any).name || null,
+        } : null,
         created_by: {
           id: savedPayment.created_by.id,
           name: (savedPayment.created_by as any).name || null,
@@ -116,7 +139,6 @@ export class PaymentsService {
       throw new InternalServerErrorException('Failed to process payment due to an internal error.');
     }
   }
-
 
   async getTotalPaid(patientId: number): Promise<number> {
     try {
@@ -289,103 +311,119 @@ export class PaymentsService {
     }
     }
 
-  async update(id: number, updateData: Partial<Payment>): Promise<any> {
-  try {
-    // Check if payment exists first
-    const existingPayment = await this.findOne(id);
+  async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<any> {
+    try {
+      // Convert DTO to the format expected by your existing logic
+      const updateData: Partial<Payment> = {
+        amount_paid: updatePaymentDto.amount_paid,
+        payment_mode: updatePaymentDto.payment_mode,
+        remarks: updatePaymentDto.remarks,
+      };
 
-    await this.paymentsRepository.update(id, updateData);
-    const updatedPayment = await this.findOne(id);
+      if (updatePaymentDto.payment_date) {
+        updateData.payment_date = new Date(updatePaymentDto.payment_date);
+      }
 
-    // ✅ Filtered response
-    return {
-      payment_id: updatedPayment.payment_id,
-      patient: {
-        patient_id: updatedPayment.patient.patient_id,
-        name: updatedPayment.patient.name,
-      },
-      session: updatedPayment.session
-        ? {
-            session_id: updatedPayment.session.session_id,
-            name: (updatedPayment.session as any).name || null,
-          }
-        : null,
-      created_by: {
-        id: updatedPayment.created_by.id,
-        name: (updatedPayment.created_by as any).name || null,
-      },
-      amount_paid: updatedPayment.amount_paid,
-      payment_mode: updatedPayment.payment_mode,
-      remarks: updatedPayment.remarks,
-      payment_date: updatedPayment.payment_date,
-      remaining_amount: updatedPayment.remaining_amount,
-      created_at: updatedPayment.created_at,
-    };
-  } catch (error) {
-    this.logger.error(`Failed to update payment #${id}: ${error.message}`, error.stack);
+      if (updatePaymentDto.patient) {
+        updateData.patient = { patient_id: updatePaymentDto.patient.patient_id } as any;
+      }
 
-    if (error instanceof NotFoundException) {
-      throw error;
-    }
+      if (updatePaymentDto.session) {
+        updateData.session = { session_id: updatePaymentDto.session.session_id } as any;
+      }
 
-    throw new InternalServerErrorException('Failed to update payment.');
-  }
-}
+      // Check if payment exists first
+      const existingPayment = await this.findOne(id);
 
+      await this.paymentsRepository.update(id, updateData);
+      const updatedPayment = await this.findOne(id);
 
-  async remove(id: number): Promise<any> {
-  try {
-    // First get filtered payment details
-    const payment = await this.findOne(id);
-
-    const result = await this.paymentsRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
-    }
-
-    this.logger.log(`Payment #${id} deleted successfully.`);
-
-    // ✅ Return filtered deleted record
-    return {
-      deleted: true,
-      payment: {
-        payment_id: payment.payment_id,
+      // ✅ Filtered response
+      return {
+        payment_id: updatedPayment.payment_id,
         patient: {
-          patient_id: payment.patient.patient_id,
-          name: payment.patient.name,
+          patient_id: updatedPayment.patient.patient_id,
+          name: updatedPayment.patient.name,
         },
-        session: payment.session
+        session: updatedPayment.session
           ? {
-              session_id: payment.session.session_id,
-              name: (payment.session as any).name || null,
+              session_id: updatedPayment.session.session_id,
+              name: (updatedPayment.session as any).name || null,
             }
           : null,
         created_by: {
-          id: payment.created_by.id,
-          name: (payment.created_by as any).name || null,
+          id: updatedPayment.created_by.id,
+          name: (updatedPayment.created_by as any).name || null,
         },
-        amount_paid: payment.amount_paid,
-        payment_mode: payment.payment_mode,
-        remarks: payment.remarks,
-        payment_date: payment.payment_date,
-        remaining_amount: payment.remaining_amount,
-        created_at: payment.created_at,
-      },
-    };
-  } catch (error) {
-    this.logger.error(`Failed to delete payment #${id}: ${error.message}`, error.stack);
+        amount_paid: updatedPayment.amount_paid,
+        payment_mode: updatedPayment.payment_mode,
+        remarks: updatedPayment.remarks,
+        payment_date: updatedPayment.payment_date,
+        remaining_amount: updatedPayment.remaining_amount,
+        created_at: updatedPayment.created_at,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to update payment #${id}: ${error.message}`, error.stack);
 
-    if (error instanceof NotFoundException) {
-      throw error;
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to update payment.');
     }
-
-    throw new InternalServerErrorException('Failed to delete payment.');
   }
-}
 
+  async remove(id: number): Promise<any> {
+    try {
+      // First get filtered payment details
+      const payment = await this.findOne(id);
+
+      const result = await this.paymentsRepository.delete(id);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Payment with ID ${id} not found`);
+      }
+
+      this.logger.log(`Payment #${id} deleted successfully.`);
+
+      // ✅ Return filtered deleted record
+      return {
+        deleted: true,
+        payment: {
+          payment_id: payment.payment_id,
+          patient: {
+            patient_id: payment.patient.patient_id,
+            name: payment.patient.name,
+          },
+          session: payment.session
+            ? {
+                session_id: payment.session.session_id,
+                name: (payment.session as any).name || null,
+              }
+            : null,
+          created_by: {
+            id: payment.created_by.id,
+            name: (payment.created_by as any).name || null,
+          },
+          amount_paid: payment.amount_paid,
+          payment_mode: payment.payment_mode,
+          remarks: payment.remarks,
+          payment_date: payment.payment_date,
+          remaining_amount: payment.remaining_amount,
+          created_at: payment.created_at,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to delete payment #${id}: ${error.message}`, error.stack);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to delete payment.');
+    }
+  }
 
   // Find Payments by Patient ID with pagination
-
   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: any[], total: number }> {
     try {
       const query = this.paymentsRepository

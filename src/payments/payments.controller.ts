@@ -1,5 +1,20 @@
-// src/payments/payments.controller.ts
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Query, Req, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Param, 
+  Put, 
+  Delete, 
+  UseGuards, 
+  Query, 
+  Req, 
+  ParseIntPipe, 
+  BadRequestException,
+  InternalServerErrorException,
+  HttpException,
+  HttpStatus
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentMode } from './entity/payment.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -7,6 +22,8 @@ import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
 import { Request } from 'express';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -24,34 +41,23 @@ export class PaymentsController {
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async create(
-    @Body() paymentData: {
-      patient: { patient_id: number };
-      session?: { session_id: number };
-      amount_paid: number;
-      payment_mode?: PaymentMode;
-      remarks?: string;
-      payment_date: string;
-    },
+    @Body() createPaymentDto: CreatePaymentDto,
     @Req() request: AuthenticatedRequest
-  ): Promise<Payment> {
-    // Validate and parse the date string
-    let paymentDate: Date;
+  ): Promise<any> {
     try {
-      paymentDate = new Date(paymentData.payment_date);
-      if (isNaN(paymentDate.getTime())) {
-        throw new BadRequestException('Invalid payment_date format. Use ISO string (e.g., "2024-01-15").');
-      }
+      // Add created_by from the authenticated user
+      const paymentData = {
+        ...createPaymentDto,
+        created_by: { id: request.user.userId }
+      };
+      
+      return await this.paymentsService.create(paymentData);
     } catch (error) {
-      throw new BadRequestException('Invalid payment_date format. Use ISO string (e.g., "2024-01-15").');
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(error.message);
     }
-
-    const paymentDataWithCreatedBy = {
-      ...paymentData,
-      payment_date: paymentDate,
-      created_by: { id: request.user.userId }
-    };
-    
-    return this.paymentsService.create(paymentDataWithCreatedBy);
   }
 
   @Get()
@@ -104,9 +110,9 @@ export class PaymentsController {
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   update(
     @Param('id', ParseIntPipe) id: number, 
-    @Body() updateData: Partial<Payment>
+    @Body() updatePaymentDto: UpdatePaymentDto
   ): Promise<Payment> {
-    return this.paymentsService.update(id, updateData);
+    return this.paymentsService.update(id, updatePaymentDto);
   }
 
   @Delete(':id')
@@ -129,30 +135,28 @@ export class PaymentsController {
 
 
   @Get('debug/test')
-@Roles(UserRole.OWNER)
-async debugTest(): Promise<any> {
-  try {
-    // Test patient service
-    const patient = await this.paymentsService['patientsService'].findOne(3);
-    
-    // Test session service
-    const session = await this.paymentsService['sessionsService'].findOne(1);
-    
-    // Test getTotalPaid
-    const totalPaid = await this.paymentsService['getTotalPaid'](3);
-    
-    return {
-      patient,
-      session,
-      totalPaid
-    };
-  } catch (error) {
-    return {
-      error: error.message,
-      stack: error.stack
-    };
+  @Roles(UserRole.OWNER)
+  async debugTest(): Promise<any> {
+    try {
+      // Test patient service
+      const patient = await this.paymentsService['patientsService'].findOne(3);
+      
+      // Test session service
+      const session = await this.paymentsService['sessionsService'].findOne(1);
+      
+      // Test getTotalPaid
+      const totalPaid = await this.paymentsService['getTotalPaid'](3);
+      
+      return {
+        patient,
+        session,
+        totalPaid
+      };
+    } catch (error) {
+      return {
+        error: error.message,
+        stack: error.stack
+      };
+    }
   }
-}
-
-
 }

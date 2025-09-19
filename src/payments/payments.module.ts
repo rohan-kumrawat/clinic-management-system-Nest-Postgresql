@@ -6,10 +6,11 @@ import { PaymentsController } from './payments.controller';
 import { Payment } from './entity/payment.entity';
 import { PatientsModule } from '../patients/patients.module';
 import { SessionsModule } from '../sessions/sessions.module';
+import { Patient } from '../patients/entity/patient.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment]),
+    TypeOrmModule.forFeature([Payment, Patient]),
     PatientsModule,
     SessionsModule,
   ],

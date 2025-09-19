@@ -31,6 +31,12 @@ export class Patient {
   
   @Column()
   package_name: string;
+
+  @Column({ default: 0 })
+  released_sessions: number;
+
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  carry_amount: number;
   
   @Column('decimal', { precision: 10, scale: 2 })
   original_amount: number;
@@ -90,4 +96,5 @@ export class Patient {
   attended_sessions_count: number;
   paid_amount: number;
   payment_status: string;
+  remaining_released_sessions: number;
 }
