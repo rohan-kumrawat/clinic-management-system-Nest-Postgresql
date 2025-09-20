@@ -14,7 +14,7 @@ export class PatientsService {
     private patientsRepository: Repository<Patient>,
   ) { }
 
-    async create(patientData: CreatePatientDto): Promise<Patient> {
+  async create(patientData: CreatePatientDto): Promise<Patient> {
     try {
       console.log('Received patientData:', patientData);
       
@@ -51,7 +51,7 @@ export class PatientsService {
     }
   }
 
-    async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
+  async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
     try {
       await this.findOne(id, userRole);
 
@@ -118,7 +118,7 @@ export class PatientsService {
     });
   }
 
-  async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
+  async findOne(id: number, userRole: UserRole | null = null): Promise<any> {
     try {
       let patient: Patient | null;
 
@@ -223,7 +223,7 @@ export class PatientsService {
     status?: PatientStatus,
     visitType?: VisitType,
     paymentStatus?: PaymentStatus,
-  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  ): Promise<{ patients: any[]; total: number; page: number; limit: number }> {
     try {
       const queryBuilder = this.buildFindQuery(userRole, {
         name,
@@ -244,33 +244,8 @@ export class PatientsService {
         .take(limit)
         .getMany();
 
-      // Calculate payment stats for each patient
-      const patientsWithStats = await Promise.all(
-        patients.map(async (patient) => {
-          // Calculate paid amount
-          const paidResult = await this.patientsRepository.manager.query(
-            `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
-             FROM payments 
-             WHERE patient_id = $1`,
-            [patient.patient_id]
-          );
-          
-          const paidAmount = parseFloat(paidResult[0].total_paid);
-          patient.paid_amount = paidAmount;
-
-          // Calculate payment status
-          const remaining = patient.total_amount - paidAmount;
-          if (paidAmount === 0) {
-            patient.payment_status = PaymentStatus.UNPAID;
-          } else if (remaining > 0) {
-            patient.payment_status = PaymentStatus.PARTIALLY_PAID;
-          } else {
-            patient.payment_status = PaymentStatus.FULLY_PAID;
-          }
-
-          return patient;
-        })
-      );
+      // Use addSessionAndPaymentStats to get all stats including remaining_release_sessions
+      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
 
       // Apply payment status filter if specified
       let filteredPatients = patientsWithStats;
@@ -300,7 +275,7 @@ export class PatientsService {
     doctorId?: number,
     visitType?: VisitType,
     paymentStatus?: PaymentStatus,
-  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+  ): Promise<{ patients: any[]; total: number; page: number; limit: number }> {
     try {
       // For active patients, we explicitly set the status to ACTIVE
       const queryBuilder = this.patientsRepository
@@ -337,33 +312,8 @@ export class PatientsService {
         .take(limit)
         .getMany();
 
-      // Calculate payment stats for each patient
-      const patientsWithStats = await Promise.all(
-        patients.map(async (patient) => {
-          // Calculate paid amount
-          const paidResult = await this.patientsRepository.manager.query(
-            `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
-             FROM payments 
-             WHERE patient_id = $1`,
-            [patient.patient_id]
-          );
-          
-          const paidAmount = parseFloat(paidResult[0].total_paid);
-          patient.paid_amount = paidAmount;
-
-          // Calculate payment status
-          const remaining = patient.total_amount - paidAmount;
-          if (paidAmount === 0) {
-            patient.payment_status = PaymentStatus.UNPAID;
-          } else if (remaining > 0) {
-            patient.payment_status = PaymentStatus.PARTIALLY_PAID;
-          } else {
-            patient.payment_status = PaymentStatus.FULLY_PAID;
-          }
-
-          return patient;
-        })
-      );
+      // Use addSessionAndPaymentStats to get all stats including remaining_release_sessions
+      const patientsWithStats = await this.addSessionAndPaymentStats(patients);
 
       // Apply payment status filter if specified
       let filteredPatients = patientsWithStats;
@@ -385,68 +335,69 @@ export class PatientsService {
     }
   }
 
-  private async addSessionAndPaymentStats(patients: Patient[]): Promise<Patient[]> {
-    try {
-      if (patients.length === 0) return patients;
+  private async addSessionAndPaymentStats(patients: Patient[]): Promise<any[]> {
+  try {
+    if (patients.length === 0) return patients;
 
-      const patientIds = patients.map(p => p.patient_id);
+    const patientIds = patients.map(p => p.patient_id);
 
-      // Get sessions count for each patient
-      const sessionCounts = await this.patientsRepository.manager.query(`
-        SELECT patient_id, COUNT(session_id) as sessions_count 
-        FROM sessions 
-        WHERE patient_id IN (${patientIds.join(',')})
-        GROUP BY patient_id
-      `);
+    // Get paid amount for each patient using a more reliable query
+    const paidAmounts = await this.patientsRepository.manager.query(`
+      SELECT patient_id, COALESCE(SUM(amount_paid), 0) as paid_amount 
+      FROM payments 
+      WHERE patient_id IN (${patientIds.join(',')})
+      GROUP BY patient_id
+    `);
 
-      // Get paid amount for each patient using a more reliable query
-      const paidAmounts = await this.patientsRepository.manager.query(`
-        SELECT patient_id, COALESCE(SUM(amount_paid), 0) as paid_amount 
-        FROM payments 
-        WHERE patient_id IN (${patientIds.join(',')})
-        GROUP BY patient_id
-      `);
+    // Map the stats to patients and format assigned_doctor
+    return patients.map(patient => {
+      const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
 
-      // Map the stats to patients and format assigned_doctor
-      return patients.map(patient => {
-        const sessionCount = sessionCounts.find((sc: any) => sc.patient_id === patient.patient_id);
-        const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
+      // Format assigned_doctor to only include id and name
+      const formattedDoctor = patient.assigned_doctor ? {
+        doctor_id: patient.assigned_doctor.doctor_id,
+        name: patient.assigned_doctor.name
+      } : null;
 
-        // Format assigned_doctor to only include id and name
-        const formattedDoctor = patient.assigned_doctor ? {
-          doctor_id: patient.assigned_doctor.doctor_id,
-          name: patient.assigned_doctor.name
-        } : null;
-
-         const attendedSessionsCount = sessionCount ? parseInt(sessionCount.sessions_count) : 0;
+      const attendedSessionsCount = patient.attended_sessions_count || 0;
       
       // Calculate remaining release sessions
-      const remainingReleasedSessions = patient.released_sessions - attendedSessionsCount;
+      const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
 
-        // Create a new object with the required properties
-        const patientWithStats = {
-          ...patient,
-          assigned_doctor: formattedDoctor,
-          attended_sessions_count: attendedSessionsCount,
-          paid_amount: paidAmount ? parseFloat(paidAmount.paid_amount) : 0,
-          remaining_released_sessions: remainingReleasedSessions > 0 ? remainingReleasedSessions : 0,
-          carry_amount: patient.carry_amount
-        };
+      // Calculate payment status
+      const totalPaid = paidAmount ? parseFloat(paidAmount.paid_amount) : 0;
+      const remaining = patient.total_amount - totalPaid;
+      let paymentStatus = PaymentStatus.UNPAID;
+      
+      if (totalPaid === 0) {
+        paymentStatus = PaymentStatus.UNPAID;
+      } else if (remaining > 0) {
+        paymentStatus = PaymentStatus.PARTIALLY_PAID;
+      } else {
+        paymentStatus = PaymentStatus.FULLY_PAID;
+      }
 
-        return patientWithStats as Patient;
-      });
-    } catch (error) {
-      console.error('Error in addSessionAndPaymentStats:', error);
-      // If there's an error, return patients without stats
-      return patients.map(patient => ({
+      // Return a plain object with all the required fields
+      return {
         ...patient,
-        attended_sessions_count: 0,
-        paid_amount: 0,
-        remaining_released_sessions: 0,
-        carry_amount: patient.carry_amount || 0,
-      } as Patient));
-    }
+        assigned_doctor: formattedDoctor,
+        paid_amount: totalPaid,
+        payment_status: paymentStatus,
+        remaining_release_sessions: remainingReleaseSessions
+      };
+    });
+  } catch (error) {
+    console.error('Error in addSessionAndPaymentStats:', error);
+    // If there's an error, return patients without stats
+    return patients.map(patient => ({
+      ...patient,
+      attended_sessions_count: 0,
+      paid_amount: 0,
+      payment_status: PaymentStatus.UNPAID,
+      remaining_release_sessions: 0
+    }));
   }
+}
 
   async getStats(): Promise<{
     total: number;
