@@ -24,123 +24,132 @@ export class PaymentsService {
   ) { }
 
   async create(createPaymentDto: CreatePaymentDto): Promise<any> {
-    try {
-      this.logger.debug(`Creating payment for patient ID: ${createPaymentDto.patient.patient_id}`);
-      
-      // Convert DTO to the format expected by your existing logic
-      const paymentData = {
-        patient: { patient_id: createPaymentDto.patient.patient_id },
-        session: createPaymentDto.session ? { session_id: createPaymentDto.session.session_id } : undefined,
-        created_by: { id: createPaymentDto.created_by.id },
-        amount_paid: createPaymentDto.amount_paid,
-        payment_mode: createPaymentDto.payment_mode,
-        remarks: createPaymentDto.remarks,
-        payment_date: new Date(createPaymentDto.payment_date)
-      };
+  try {
+    this.logger.debug(`Creating payment for patient ID: ${createPaymentDto.patient.patient_id}`);
 
-      // Verify patient exists
-      const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${paymentData.patient.patient_id} not found`);
-      }
+    // Convert DTO to the format expected by your existing logic
+    const paymentData = {
+      patient: { patient_id: createPaymentDto.patient.patient_id },
+      session: createPaymentDto.session ? { session_id: createPaymentDto.session.session_id } : undefined,
+      created_by: { id: createPaymentDto.created_by.id },
+      amount_paid: createPaymentDto.amount_paid,
+      payment_mode: createPaymentDto.payment_mode,
+      remarks: createPaymentDto.remarks,
+      payment_date: new Date(createPaymentDto.payment_date)
+    };
 
-      // Check if patient.total_amount exists
-      if (patient.total_amount === undefined || patient.total_amount === null) {
-        this.logger.error(`Patient #${patient.patient_id} is missing the 'total_amount' field.`);
-        throw new InternalServerErrorException(`Patient data is incomplete. Please check patient records.`);
-      }
+    // Verify patient exists
+    const patient = await this.patientsService.findOne(paymentData.patient.patient_id);
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${paymentData.patient.patient_id} not found`);
+    }
 
-      // If session is provided, verify it exists
-      let sessionEntity: Session | null = null;
-      if (paymentData.session && paymentData.session.session_id) {
-        try {
-          sessionEntity = await this.sessionsService.findOne(paymentData.session.session_id);
-        } catch (error) {
-          if (error instanceof NotFoundException) {
-            throw new NotFoundException(`Session with ID ${paymentData.session.session_id} not found`);
-          }
-          throw error;
+    // Check if patient.total_amount exists
+    if (patient.total_amount === undefined || patient.total_amount === null) {
+      this.logger.error(`Patient #${patient.patient_id} is missing the 'total_amount' field.`);
+      throw new InternalServerErrorException(`Patient data is incomplete. Please check patient records.`);
+    }
+
+    // If session is provided, verify it exists
+    let sessionEntity: Session | null = null;
+    if (paymentData.session && paymentData.session.session_id) {
+      try {
+        sessionEntity = await this.sessionsService.findOne(paymentData.session.session_id);
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw new NotFoundException(`Session with ID ${paymentData.session.session_id} not found`);
         }
-      }
-
-      // Validate amount
-      if (paymentData.amount_paid <= 0) {
-        throw new BadRequestException('Payment amount must be greater than zero.');
-      }
-
-      // Convert all decimal values to numbers to ensure proper calculations
-      const patientTotal = Number(patient.total_amount);
-      const patientCarryAmount = Number(patient.carry_amount || 0);
-      const patientReleasedSessions = Number(patient.released_sessions || 0);
-      const perSessionAmount = Number(patient.per_session_amount) || (patientTotal / (patient.total_sessions || 1));
-
-      // Calculate total paid including this payment
-      let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
-      totalPaid = Number(totalPaid) + Number(paymentData.amount_paid);
-
-      // Calculate remaining amount
-      const remainingAmount = patientTotal - totalPaid;
-
-      // Calculate released sessions and carry amount with proper decimal handling
-      const totalAvailableAmount = patientCarryAmount + Number(paymentData.amount_paid);
-      const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
-      const newCarryAmount = totalAvailableAmount % perSessionAmount;
-      const newReleasedSessions = patientReleasedSessions + sessionsToRelease;
-
-      // Create payment entity
-      const payment = new Payment();
-      payment.patient = patient;
-      payment.session = sessionEntity;
-      payment.created_by = { id: paymentData.created_by.id } as User;
-      payment.amount_paid = Number(paymentData.amount_paid);
-      payment.payment_mode = paymentData.payment_mode || PaymentMode.CASH;
-      payment.remarks = paymentData.remarks ?? '';
-      payment.payment_date = paymentData.payment_date;
-      payment.remaining_amount = remainingAmount < 0 ? 0 : remainingAmount;
-
-      const savedPayment = await this.paymentsRepository.save(payment);
-
-      // Update patient with new released_sessions and carry_amount
-      await this.patientsRepository.update(patient.patient_id, {
-        released_sessions: newReleasedSessions,
-        carry_amount: parseFloat(newCarryAmount.toFixed(2)) // Ensure 2 decimal places
-      });
-
-      // ✅ Filtered response
-      return {
-        payment_id: savedPayment.payment_id,
-        patient: {
-          patient_id: patient.patient_id,
-          name: patient.name,
-          released_sessions: newReleasedSessions,
-          carry_amount: parseFloat(newCarryAmount.toFixed(2))
-        },
-        session: sessionEntity ? {
-          session_id: sessionEntity.session_id,
-          name: (sessionEntity as any).name || null,
-        } : null,
-        created_by: {
-          id: savedPayment.created_by.id,
-          name: (savedPayment.created_by as any).name || null,
-        },
-        amount_paid: savedPayment.amount_paid,
-        payment_mode: savedPayment.payment_mode,
-        remarks: savedPayment.remarks,
-        payment_date: savedPayment.payment_date,
-        remaining_amount: savedPayment.remaining_amount,
-        created_at: savedPayment.created_at,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to create payment: ${error.message}`, error.stack);
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException ||
-        error instanceof InternalServerErrorException
-      ) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to process payment due to an internal error.');
     }
+
+    // Validate amount
+    if (paymentData.amount_paid <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero.');
+    }
+
+    // Convert all decimal values to numbers to ensure proper calculations
+    const patientTotal = Number(patient.total_amount);
+    const patientCarryAmount = Number(patient.carry_amount || 0);
+    const patientReleasedSessions = Number(patient.released_sessions || 0);
+    const perSessionAmount = Number(patient.per_session_amount) || (patientTotal / (patient.total_sessions || 1));
+
+    // Calculate total paid including this payment
+    let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
+    totalPaid = Number(totalPaid) + Number(paymentData.amount_paid);
+
+    // Calculate remaining amount
+    const remainingAmount = patientTotal - totalPaid;
+
+    // Calculate released sessions and carry amount with proper decimal handling
+    const totalAvailableAmount = patientCarryAmount + Number(paymentData.amount_paid);
+    const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
+    const newCarryAmount = totalAvailableAmount % perSessionAmount;
+    const newReleasedSessions = patientReleasedSessions + sessionsToRelease;
+
+    // Calculate remaining release sessions (attended sessions subtracted from released sessions)
+    const attendedSessionsResult = await this.patientsRepository.manager.query(
+      `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
+      [patient.patient_id]
+    );
+    const attendedSessionsCount = parseInt(attendedSessionsResult[0].count, 10);
+    const remainingReleaseSessions = Math.max(newReleasedSessions - attendedSessionsCount, 0);
+
+    // Create payment entity
+    const payment = new Payment();
+    payment.patient = patient;
+    payment.session = sessionEntity;
+    payment.created_by = { id: paymentData.created_by.id } as User;
+    payment.amount_paid = Number(paymentData.amount_paid);
+    payment.payment_mode = paymentData.payment_mode || PaymentMode.CASH;
+    payment.remarks = paymentData.remarks ?? '';
+    payment.payment_date = paymentData.payment_date;
+    payment.remaining_amount = remainingAmount < 0 ? 0 : remainingAmount;
+
+    const savedPayment = await this.paymentsRepository.save(payment);
+
+    // Update patient with new released_sessions and carry_amount
+    await this.patientsRepository.update(patient.patient_id, {
+      released_sessions: newReleasedSessions,
+      carry_amount: parseFloat(newCarryAmount.toFixed(2)) // Ensure 2 decimal places
+    });
+
+    // ✅ Filtered response with remaining_release_sessions
+    return {
+      payment_id: savedPayment.payment_id,
+      patient: {
+        patient_id: patient.patient_id,
+        name: patient.name,
+        released_sessions: newReleasedSessions,
+        carry_amount: parseFloat(newCarryAmount.toFixed(2)),
+        remaining_release_sessions: remainingReleaseSessions // Add remaining release sessions
+      },
+      session: sessionEntity ? {
+        session_id: sessionEntity.session_id,
+        name: (sessionEntity as any).name || null,
+      } : null,
+      created_by: {
+        id: savedPayment.created_by.id,
+        name: (savedPayment.created_by as any).name || null,
+      },
+      amount_paid: savedPayment.amount_paid,
+      payment_mode: savedPayment.payment_mode,
+      remarks: savedPayment.remarks,
+      payment_date: savedPayment.payment_date,
+      remaining_amount: savedPayment.remaining_amount,
+      created_at: savedPayment.created_at,
+    };
+  } catch (error) {
+    this.logger.error(`Failed to create payment: ${error.message}`, error.stack);
+    if (
+      error instanceof NotFoundException ||
+      error instanceof BadRequestException ||
+      error instanceof InternalServerErrorException
+    ) {
+      throw error;
+    }
+    throw new InternalServerErrorException('Failed to process payment due to an internal error.');
+  }
   }
 
   async getTotalPaid(patientId: number): Promise<number> {
@@ -259,60 +268,61 @@ export class PaymentsService {
   }
 
   async getRevenueStats(startDate: Date, endDate: Date): Promise<{
-    totalRevenue: number;
-    revenueByMode: Record<PaymentMode, number>;
-    dailyRevenue: { date: string; amount: number }[];
-      }> {
-    try {
-      // Validate dates
-      if (startDate > endDate) {
-        throw new BadRequestException('Start date cannot be after end date.');
+        totalRevenue: number;
+        revenueByMode: Record<PaymentMode, number>;
+        dailyRevenue: { date: string; amount: number }[];
+      }> 
+    {
+      try {
+        // Validate dates
+        if (startDate > endDate) {
+          throw new BadRequestException('Start date cannot be after end date.');
+        }
+
+        const payments = await this.findByDateRange(startDate, endDate);
+
+        const totalRevenue = payments.reduce((total, payment) => total + payment.amount_paid, 0);
+
+        const revenueByMode = {} as Record<PaymentMode, number>;
+        Object.values(PaymentMode).forEach(mode => {
+          revenueByMode[mode] = 0;
+        });
+
+        payments.forEach(payment => {
+          const mode = payment.payment_mode || PaymentMode.CASH;
+          revenueByMode[mode] = (revenueByMode[mode] || 0) + payment.amount_paid;
+        });
+
+        // Group by day
+        const dailyRevenueMap = new Map<string, number>();
+        payments.forEach(payment => {
+          const dateStr = payment.payment_date.toISOString().split('T')[0];
+          dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + payment.amount_paid);
+        });
+
+        const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(([date, amount]) => ({
+          date,
+          amount: parseFloat(amount.toFixed(2))
+        }));
+
+        // Sort daily revenue by date
+        dailyRevenue.sort((a, b) => a.date.localeCompare(b.date));
+
+        return {
+          totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+          revenueByMode,
+          dailyRevenue
+        };
+      } catch (error) {
+        this.logger.error(`Failed to generate revenue stats: ${error.message}`, error.stack);
+
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+
+        throw new InternalServerErrorException('Failed to generate revenue statistics.');
       }
-
-      const payments = await this.findByDateRange(startDate, endDate);
-
-      const totalRevenue = payments.reduce((total, payment) => total + payment.amount_paid, 0);
-
-      const revenueByMode = {} as Record<PaymentMode, number>;
-      Object.values(PaymentMode).forEach(mode => {
-        revenueByMode[mode] = 0;
-      });
-
-      payments.forEach(payment => {
-        const mode = payment.payment_mode || PaymentMode.CASH;
-        revenueByMode[mode] = (revenueByMode[mode] || 0) + payment.amount_paid;
-      });
-
-      // Group by day
-      const dailyRevenueMap = new Map<string, number>();
-      payments.forEach(payment => {
-        const dateStr = payment.payment_date.toISOString().split('T')[0];
-        dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + payment.amount_paid);
-      });
-
-      const dailyRevenue = Array.from(dailyRevenueMap.entries()).map(([date, amount]) => ({
-        date,
-        amount: parseFloat(amount.toFixed(2))
-      }));
-
-      // Sort daily revenue by date
-      dailyRevenue.sort((a, b) => a.date.localeCompare(b.date));
-
-      return {
-        totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-        revenueByMode,
-        dailyRevenue
-      };
-    } catch (error) {
-      this.logger.error(`Failed to generate revenue stats: ${error.message}`, error.stack);
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException('Failed to generate revenue statistics.');
-    }
-    }
+  }
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<any> {
     try {
@@ -350,9 +360,9 @@ export class PaymentsService {
         },
         session: updatedPayment.session
           ? {
-              session_id: updatedPayment.session.session_id,
-              name: (updatedPayment.session as any).name || null,
-            }
+            session_id: updatedPayment.session.session_id,
+            name: (updatedPayment.session as any).name || null,
+          }
           : null,
         created_by: {
           id: updatedPayment.created_by.id,
@@ -399,9 +409,9 @@ export class PaymentsService {
           },
           session: payment.session
             ? {
-                session_id: payment.session.session_id,
-                name: (payment.session as any).name || null,
-              }
+              session_id: payment.session.session_id,
+              name: (payment.session as any).name || null,
+            }
             : null,
           created_by: {
             id: payment.created_by.id,
