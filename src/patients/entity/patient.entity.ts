@@ -10,8 +10,8 @@ export class Patient {
   @PrimaryGeneratedColumn()
   patient_id: number;
 
-  @Column({ nullable: true })
-  serial_no: number;
+  // @Column({ nullable: true })
+  // serial_no: number;
 
   @Column({ unique: true })
   reg_no: string;
