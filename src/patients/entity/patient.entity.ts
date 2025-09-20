@@ -4,6 +4,7 @@ import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { PatientStatus, VisitType, Gender } from '../../common/enums';
+import { DecimalTransformer } from 'src/common/decimal.transformer';
 
 @Entity('patients')
 export class Patient {
@@ -35,22 +36,44 @@ export class Patient {
   @Column({ default: 0 })
   released_sessions: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  @Column('decimal', { 
+    precision: 10, 
+    scale: 2, 
+    default: 0,
+    transformer: new DecimalTransformer() 
+  })
   carry_amount: number;
   
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { 
+    precision: 10, 
+    scale: 2,
+    transformer: new DecimalTransformer()
+  })
   original_amount: number;
   
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { 
+    precision: 10, 
+    scale: 2,
+    default: 0,
+    transformer: new DecimalTransformer()
+  })
   discount_amount: number;
   
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { 
+    precision: 10, 
+    scale: 2, 
+    transformer: new DecimalTransformer()
+  })
   total_amount: number;
   
   @Column()
   total_sessions: number;
   
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { 
+    precision: 10, 
+    scale: 2, 
+    transformer: new DecimalTransformer()
+  })
   per_session_amount: number;
   
   @Column({ nullable: true })

@@ -68,28 +68,31 @@ export class PaymentsService {
         throw new BadRequestException('Payment amount must be greater than zero.');
       }
 
+      // Convert all decimal values to numbers to ensure proper calculations
+      const patientTotal = Number(patient.total_amount);
+      const patientCarryAmount = Number(patient.carry_amount || 0);
+      const patientReleasedSessions = Number(patient.released_sessions || 0);
+      const perSessionAmount = Number(patient.per_session_amount) || (patientTotal / (patient.total_sessions || 1));
+
       // Calculate total paid including this payment
       let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
-      totalPaid += paymentData.amount_paid;
+      totalPaid = Number(totalPaid) + Number(paymentData.amount_paid);
 
       // Calculate remaining amount
-      const patientTotal = patient.total_amount || 0;
       const remainingAmount = patientTotal - totalPaid;
 
-      // Calculate released sessions and carry amount
-      const totalAvailableAmount = patient.carry_amount + paymentData.amount_paid;
-      const perSessionAmount = patient.per_session_amount || patientTotal / (patient.total_sessions || 1);
-      
+      // Calculate released sessions and carry amount with proper decimal handling
+      const totalAvailableAmount = patientCarryAmount + Number(paymentData.amount_paid);
       const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
       const newCarryAmount = totalAvailableAmount % perSessionAmount;
-      const newReleasedSessions = patient.released_sessions + sessionsToRelease;
+      const newReleasedSessions = patientReleasedSessions + sessionsToRelease;
 
       // Create payment entity
       const payment = new Payment();
       payment.patient = patient;
       payment.session = sessionEntity;
       payment.created_by = { id: paymentData.created_by.id } as User;
-      payment.amount_paid = paymentData.amount_paid;
+      payment.amount_paid = Number(paymentData.amount_paid);
       payment.payment_mode = paymentData.payment_mode || PaymentMode.CASH;
       payment.remarks = paymentData.remarks ?? '';
       payment.payment_date = paymentData.payment_date;
@@ -100,7 +103,7 @@ export class PaymentsService {
       // Update patient with new released_sessions and carry_amount
       await this.patientsRepository.update(patient.patient_id, {
         released_sessions: newReleasedSessions,
-        carry_amount: newCarryAmount
+        carry_amount: parseFloat(newCarryAmount.toFixed(2)) // Ensure 2 decimal places
       });
 
       // ✅ Filtered response
@@ -110,7 +113,7 @@ export class PaymentsService {
           patient_id: patient.patient_id,
           name: patient.name,
           released_sessions: newReleasedSessions,
-          carry_amount: newCarryAmount
+          carry_amount: parseFloat(newCarryAmount.toFixed(2))
         },
         session: sessionEntity ? {
           session_id: sessionEntity.session_id,
