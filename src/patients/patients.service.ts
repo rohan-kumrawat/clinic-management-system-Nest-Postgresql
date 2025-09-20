@@ -119,32 +119,78 @@ export class PatientsService {
   }
 
   async findOne(id: number, userRole: UserRole | null = null): Promise<any> {
-    try {
-      let patient: Patient | null;
+  try {
+    let queryBuilder = this.patientsRepository
+      .createQueryBuilder('patient')
+      .leftJoin('patient.assigned_doctor', 'doctor')
+      .addSelect(['doctor.doctor_id', 'doctor.name'])
+      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
+      .where('patient.patient_id = :id', { id });
 
-      if (userRole === UserRole.RECEPTIONIST) {
-        patient = await this.patientsRepository.findOne({
-          where: { patient_id: id, status: PatientStatus.ACTIVE },
-          relations: ['assigned_doctor'],
-        });
-      } else {
-        patient = await this.patientsRepository.findOne({
-          where: { patient_id: id },
-          relations: ['assigned_doctor'],
-        });
-      }
-
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
-      }
-
-      const patientsWithStats = await this.addSessionAndPaymentStats([patient]);
-      return patientsWithStats[0];
-    } catch (error) {
-      console.error('Error fetching patient:', error);
-      throw new Error('Failed to fetch patient');
+    // Apply role-based filter (Receptionist can only see ACTIVE patients)
+    if (userRole === UserRole.RECEPTIONIST) {
+      queryBuilder = queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
     }
+
+    const patient = await queryBuilder.getOne();
+
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${id} not found`);
+    }
+
+    // Get the accurate attended sessions count
+    const sessionCountResult = await this.patientsRepository.manager.query(
+      `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
+      [id]
+    );
+    
+    const attendedSessionsCount = parseInt(sessionCountResult[0].count, 10);
+    
+    // Get paid amount
+    const paidResult = await this.patientsRepository.manager.query(
+      `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
+       FROM payments 
+       WHERE patient_id = $1`,
+      [id]
+    );
+    
+    const paidAmount = parseFloat(paidResult[0].total_paid);
+    
+    // Calculate payment status
+    const remaining = patient.total_amount - paidAmount;
+    let paymentStatus = PaymentStatus.UNPAID;
+    
+    if (paidAmount === 0) {
+      paymentStatus = PaymentStatus.UNPAID;
+    } else if (remaining > 0) {
+      paymentStatus = PaymentStatus.PARTIALLY_PAID;
+    } else {
+      paymentStatus = PaymentStatus.FULLY_PAID;
+    }
+    
+    // Calculate remaining release sessions
+    const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
+    
+    // Format assigned_doctor
+    const formattedDoctor = patient.assigned_doctor ? {
+      doctor_id: patient.assigned_doctor.doctor_id,
+      name: patient.assigned_doctor.name
+    } : null;
+
+    // Return the complete patient object with all stats
+    return {
+      ...patient,
+      assigned_doctor: formattedDoctor,
+      attended_sessions_count: attendedSessionsCount,
+      paid_amount: paidAmount,
+      payment_status: paymentStatus,
+      remaining_release_sessions: remainingReleaseSessions
+    };
+  } catch (error) {
+    console.error('Error fetching patient:', error);
+    throw new Error('Failed to fetch patient');
   }
+}
 
   async remove(id: number): Promise<{ message: string }> {
     try {
