@@ -52,43 +52,58 @@ export class PatientsService {
   }
 
   async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
-    try {
-      await this.findOne(id, userRole);
+  try {
+    await this.findOne(id, userRole);
 
-      // Handle the assigned_doctor object in update as well
-      if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
-        const doctorData = updateData.assigned_doctor as any;
-        const doctorId = doctorData.id || doctorData.doctor_id;
-        
-        if (doctorId) {
-          updateData.assigned_doctor = { doctor_id: doctorId } as any;
-        } else {
-          updateData.assigned_doctor = null;
-        }
+    // Handle the assigned_doctor object in update as well
+    if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
+      const doctorData = updateData.assigned_doctor as any;
+      const doctorId = doctorData.id || doctorData.doctor_id;
+      
+      if (doctorId) {
+        updateData.assigned_doctor = { doctor_id: doctorId } as any;
+      } else {
+        updateData.assigned_doctor = null;
       }
-
-      // Agar total_sessions ya total_amount change hua hai aur per_session_amount nahi diya gaya hai
-      if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
-          !updateData.per_session_amount) {
-        const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
-        if (!patient) {
-          throw new NotFoundException(`Patient with ID ${id} not found`);
-        }
-        const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
-        const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
-
-        if (newTotalSessions > 0) {
-          updateData.per_session_amount = newTotalAmount / newTotalSessions;
-        }
-      }
-
-      await this.patientsRepository.update(id, updateData);
-      return this.findOne(id, userRole);
-    } catch (error) {
-      console.error('Error updating patient:', error);
-      throw new Error('Failed to update patient');
     }
+
+    // Recalculate total_amount if original_amount or discount_amount is updated
+    if (updateData.original_amount !== undefined || updateData.discount_amount !== undefined) {
+      const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
+      
+      const newOriginalAmount = updateData.original_amount !== undefined ? 
+        updateData.original_amount : patient.original_amount;
+      const newDiscountAmount = updateData.discount_amount !== undefined ? 
+        updateData.discount_amount : patient.discount_amount;
+      
+      updateData.total_amount = newOriginalAmount - newDiscountAmount;
+    }
+
+    // Recalculate per_session_amount if total_amount or total_sessions is updated
+    if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
+        !updateData.per_session_amount) {
+      const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
+      const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
+      const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
+
+      if (newTotalSessions > 0) {
+        updateData.per_session_amount = newTotalAmount / newTotalSessions;
+      }
+    }
+
+    await this.patientsRepository.update(id, updateData);
+    return this.findOne(id, userRole);
+  } catch (error) {
+    console.error('Error updating patient:', error);
+    throw new Error('Failed to update patient');
   }
+}
 
   private async recalculateReleasedSessionsAndCarryAmount(patientId: number): Promise<void> {
     const patient = await this.patientsRepository.findOne({
