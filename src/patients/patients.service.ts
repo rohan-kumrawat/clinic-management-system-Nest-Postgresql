@@ -97,7 +97,20 @@ export class PatientsService {
       }
     }
 
+    // Update the patient with the new data
     await this.patientsRepository.update(id, updateData);
+
+    // If financial fields were updated, recalculate released_sessions and carry_amount
+    const financialFieldsUpdated = 
+      updateData.original_amount !== undefined || 
+      updateData.discount_amount !== undefined || 
+      updateData.total_amount !== undefined || 
+      updateData.total_sessions !== undefined;
+
+    if (financialFieldsUpdated) {
+      await this.recalculateReleasedSessionsAndCarryAmount(id);
+    }
+
     return this.findOne(id, userRole);
   } catch (error) {
     console.error('Error updating patient:', error);
@@ -105,33 +118,40 @@ export class PatientsService {
   }
 }
 
+
+
   private async recalculateReleasedSessionsAndCarryAmount(patientId: number): Promise<void> {
-    const patient = await this.patientsRepository.findOne({
-      where: { patient_id: patientId },
-      relations: ['payments']
-    });
-    
-    if (!patient) return;
-    
-    // Total paid amount calculate karein
-    const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
-    
-    // Total available amount (including current carry amount)
-    const totalAvailableAmount = totalPaid;
-    
-    // Kitne sessions release kar sakte hain
-    const perSessionAmount = patient.per_session_amount || (patient.total_amount / patient.total_sessions);
-    const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
-    
-    // Naya carry amount calculate karein
-    const newCarryAmount = totalAvailableAmount % perSessionAmount;
-    
-    // Patient update karein
-    await this.patientsRepository.update(patientId, {
-      released_sessions: sessionsToRelease,
-      carry_amount: newCarryAmount
-    });
-  }
+  const patient = await this.patientsRepository.findOne({
+    where: { patient_id: patientId },
+    relations: ['payments']
+  });
+  
+  if (!patient) return;
+  
+  // Get the current patient data with updated financial fields
+  const currentPatient = await this.patientsRepository.findOne({
+    where: { patient_id: patientId }
+  });
+  
+  if (!currentPatient) return;
+  
+  // Total paid amount calculate karein
+  const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
+  
+  // Use the updated per_session_amount if available
+  const perSessionAmount = currentPatient.per_session_amount || 
+                          (currentPatient.total_amount / currentPatient.total_sessions);
+  
+  // Calculate released sessions and carry amount
+  const sessionsToRelease = Math.floor(totalPaid / perSessionAmount);
+  const newCarryAmount = totalPaid % perSessionAmount;
+  
+  // Patient update karein
+  await this.patientsRepository.update(patientId, {
+    released_sessions: sessionsToRelease,
+    carry_amount: newCarryAmount
+  });
+}
 
   async findOne(id: number, userRole: UserRole | null = null): Promise<any> {
   try {
