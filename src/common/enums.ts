@@ -24,3 +24,7 @@ export enum Gender {
   FEMALE = 'female',
   OTHER = 'other'
 }
+export enum ShiftType {
+  MORNING = 'morning',
+  EVENING = 'evening',
+}  

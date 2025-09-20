@@ -4,6 +4,7 @@ import { Patient } from '../../patients/entity/patient.entity';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { User } from '../../auth/entity/user.entity';
+import { ShiftType } from 'src/common/enums';
 
 @Entity('sessions')
 export class Session {
@@ -31,6 +32,12 @@ export class Session {
   })
   visit_type?: 'clinic' | 'home';
 
+  @Column({
+    type: 'enum',
+    enum: ShiftType,
+    default: ShiftType.MORNING,
+  })
+  shift: string;
 
 
   @Column({ type: 'date' })
