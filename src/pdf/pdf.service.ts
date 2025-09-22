@@ -213,101 +213,148 @@ export class PdfService {
   }
 
   // 2. Doctor-wise Stats PDF
-  async generateDoctorWiseReport(data: any[]): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    try {
-      const doc = new PDFDocument({ margin: 50 });
-      const buffers: any[] = [];
+  // pdf.service.ts - generateDoctorWiseReport function update karo
+async generateDoctorWiseReport(data: any[]): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        try {
+            const doc = new PDFDocument({ margin: 50, size: 'A4' });
+            const buffers: any[] = [];
 
-      doc.on('data', buffers.push.bind(buffers));
-      doc.on('end', () => {
-        const pdfData = Buffer.concat(buffers);
-        resolve(pdfData);
-      });
+            doc.on('data', buffers.push.bind(buffers));
+            doc.on('end', () => {
+                const pdfData = Buffer.concat(buffers);
+                resolve(pdfData);
+            });
 
-      // ✅ Title without date range
-      doc.fontSize(20).font('Helvetica-Bold')
-         .fillColor('#2c3e50')
-         .text('DOCTOR PERFORMANCE REPORT', 50, 50, { align: 'center' });
-      
-      doc.fontSize(12).font('Helvetica')
-         .fillColor('#7f8c8d')
-         .text('All Time Statistics', 50, 80, { align: 'center' });
+            // ✅ Title - All Time Doctor Performance
+            doc.fontSize(20).font('Helvetica-Bold')
+               .fillColor('#2c3e50')
+               .text('DOCTOR PERFORMANCE REPORT', 50, 50, { align: 'center' });
+            
+            doc.fontSize(12).font('Helvetica')
+               .fillColor('#7f8c8d')
+               .text('All Time Statistics - Patient-wise Revenue', 50, 80, { align: 'center' });
 
-      // Clinic Info
-      doc.fontSize(10)
-         .fillColor('#34495e')
-         .text('ADVANCE LASER CLINIC', 50, 110)
-         .text('Contact: +91-XXXXXXXXXX | Email: clinic@advancelaser.com', 50, 125);
+            // Clinic Info
+            doc.fontSize(10)
+               .fillColor('#34495e')
+               .text('ADVANCE LASER CLINIC', 50, 110)
+               .text('Contact: +91-XXXXXXXXXX | Email: clinic@advancelaser.com', 50, 125);
 
-      // Summary Stats
-      const totalSessions = data.reduce((sum, doc) => sum + doc.sessionCount, 0);
-      const totalRevenue = data.reduce((sum, doc) => sum + doc.revenue, 0);
-      const totalPatients = data.reduce((sum, doc) => sum + doc.patientCount, 0);
+            // Summary Stats
+            const totalSessions = data.reduce((sum, doc) => sum + doc.sessionCount, 0);
+            const totalRevenue = data.reduce((sum, doc) => sum + doc.revenue, 0);
+            const totalPatients = data.reduce((sum, doc) => sum + doc.patientCount, 0);
+            const activeDoctors = data.filter(doc => doc.sessionCount > 0).length;
 
-      doc.fontSize(12).font('Helvetica-Bold')
-         .fillColor('#2c3e50')
-         .text('SUMMARY', 50, 160);
-      
-      doc.fontSize(10).font('Helvetica')
-         .fillColor('#34495e')
-         .text(`Total Doctors: ${data.length}`, 50, 180)
-         .text(`Total Sessions: ${totalSessions}`, 50, 195)
-         .text(`Total Patients: ${totalPatients}`, 50, 210)
-         .text(`Total Revenue: ₹${totalRevenue.toLocaleString('en-IN')}`, 50, 225);
+            doc.fontSize(12).font('Helvetica-Bold')
+               .fillColor('#2c3e50')
+               .text('SUMMARY OVERVIEW', 50, 160);
+            
+            doc.fontSize(10).font('Helvetica')
+               .fillColor('#34495e')
+               .text(`Active Doctors: ${activeDoctors}`, 50, 180)
+               .text(`Total Patients Treated: ${totalPatients}`, 50, 195)
+               .text(`Total Sessions Conducted: ${totalSessions}`, 50, 210)
+               .text(`Total Revenue Generated: ₹${totalRevenue.toLocaleString('en-IN')}`, 50, 225);
 
-      // Doctor-wise Table Header
-      let yPosition = 260;
-      
-      // Table Header
-      doc.fontSize(10).font('Helvetica-Bold')
-         .fillColor('#ffffff')
-         .rect(50, yPosition, 500, 25).fill('#2c3e50');
-      
-      doc.text('Doctor Name', 60, yPosition + 8)
-        .text('Patients', 250, yPosition + 8)
-        .text('Sessions', 320, yPosition + 8)
-        .text('Revenue', 390, yPosition + 8, { width: 150, align: 'right' });
+            // Doctor-wise Performance Table
+            let yPosition = 260;
+            
+            // Table Header
+            doc.fontSize(10).font('Helvetica-Bold')
+               .fillColor('#ffffff')
+               .rect(50, yPosition, 500, 25).fill('#2c3e50');
+            
+            doc.text('Doctor Name', 60, yPosition + 8)
+              .text('Patients', 250, yPosition + 8, { width: 60, align: 'center' })
+              .text('Sessions', 320, yPosition + 8, { width: 60, align: 'center' })
+              .text('Revenue', 390, yPosition + 8, { width: 150, align: 'right' });
 
-      yPosition += 30;
+            yPosition += 30;
 
-      // Doctor Data Rows
-      data.forEach((doctor, index) => {
-        if (yPosition > 700) {
-          doc.addPage();
-          yPosition = 50;
+            // Sort doctors by revenue (descending)
+            const sortedData = [...data].sort((a, b) => b.revenue - a.revenue);
+
+            // Doctor Data Rows
+            sortedData.forEach((doctor, index) => {
+                // Add new page if needed
+                if (yPosition > 700) {
+                    doc.addPage();
+                    yPosition = 50;
+                    
+                    // Table header for new page
+                    doc.fontSize(10).font('Helvetica-Bold')
+                       .fillColor('#ffffff')
+                       .rect(50, yPosition, 500, 25).fill('#2c3e50');
+                    
+                    doc.text('Doctor Name', 60, yPosition + 8)
+                      .text('Patients', 250, yPosition + 8, { width: 60, align: 'center' })
+                      .text('Sessions', 320, yPosition + 8, { width: 60, align: 'center' })
+                      .text('Revenue', 390, yPosition + 8, { width: 150, align: 'right' });
+                    
+                    yPosition += 30;
+                }
+
+                // Alternate row colors
+                const bgColor = index % 2 === 0 ? '#f8f9fa' : '#ffffff';
+                doc.rect(50, yPosition, 500, 20).fill(bgColor);
+                
+                // Highlight top performer
+                const textColor = index === 0 && doctor.revenue > 0 ? '#e74c3c' : '#2c3e50';
+                const fontWeight = index === 0 && doctor.revenue > 0 ? 'Helvetica-Bold' : 'Helvetica';
+                
+                doc.fontSize(9).font(fontWeight)
+                   .fillColor(textColor)
+                   .text(doctor.doctorName, 60, yPosition + 5, { width: 180 })
+                   .text(doctor.patientCount.toString(), 250, yPosition + 5, { width: 60, align: 'center' })
+                   .text(doctor.sessionCount.toString(), 320, yPosition + 5, { width: 60, align: 'center' })
+                   .text(`₹${doctor.revenue.toLocaleString('en-IN')}`, 390, yPosition + 5, { width: 150, align: 'right' });
+
+                yPosition += 25;
+            });
+
+            // Performance Analysis Section
+            if (yPosition > 600) {
+                doc.addPage();
+                yPosition = 50;
+            }
+
+            doc.fontSize(12).font('Helvetica-Bold')
+               .fillColor('#2c3e50')
+               .text('PERFORMANCE ANALYSIS', 50, yPosition);
+            
+            yPosition += 30;
+
+            // Calculate averages
+            const avgPatientsPerDoctor = totalPatients / Math.max(activeDoctors, 1);
+            const avgSessionsPerDoctor = totalSessions / Math.max(activeDoctors, 1);
+            const avgRevenuePerDoctor = totalRevenue / Math.max(activeDoctors, 1);
+            const avgRevenuePerPatient = totalRevenue / Math.max(totalPatients, 1);
+
+            doc.fontSize(10).font('Helvetica')
+               .fillColor('#34495e')
+               .text(`Average Patients per Doctor: ${avgPatientsPerDoctor.toFixed(1)}`, 50, yPosition)
+               .text(`Average Sessions per Doctor: ${avgSessionsPerDoctor.toFixed(1)}`, 50, yPosition + 15)
+               .text(`Average Revenue per Doctor: ₹${avgRevenuePerDoctor.toLocaleString('en-IN', {maximumFractionDigits: 0})}`, 50, yPosition + 30)
+               .text(`Average Revenue per Patient: ₹${avgRevenuePerPatient.toLocaleString('en-IN', {maximumFractionDigits: 0})}`, 50, yPosition + 45);
+
+            // Footer on all pages
+            const totalPages = doc.bufferedPageRange().count;
+            for (let i = 0; i < totalPages; i++) {
+                doc.switchToPage(i);
+                
+                doc.fontSize(8).font('Helvetica')
+                   .fillColor('#7f8c8d')
+                   .text(`Generated on: ${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}`, 50, 800, { align: 'left' })
+                   .text(`Page ${i + 1} of ${totalPages}`, 50, 800, { align: 'right' });
+            }
+
+            doc.end();
+        } catch (error) {
+            reject(error);
         }
-
-        // Alternate row colors
-        const bgColor = index % 2 === 0 ? '#f8f9fa' : '#ffffff';
-        doc.rect(50, yPosition, 500, 20).fill(bgColor);
-        
-        doc.fontSize(9).font('Helvetica')
-           .fillColor('#2c3e50')
-           .text(doctor.doctorName, 60, yPosition + 5, { width: 180 })
-           .text(doctor.patientCount.toString(), 250, yPosition + 5, { width: 60 })
-           .text(doctor.sessionCount.toString(), 320, yPosition + 5, { width: 60 })
-           .text(`₹${doctor.revenue.toLocaleString('en-IN')}`, 390, yPosition + 5, { width: 150, align: 'right' });
-
-        yPosition += 25;
-      });
-
-      // Footer
-      const totalPages = doc.bufferedPageRange().count;
-      for (let i = 0; i < totalPages; i++) {
-        doc.switchToPage(i);
-        
-        doc.fontSize(8).font('Helvetica')
-           .fillColor('#7f8c8d')
-           .text(`Generated on: ${new Date().toLocaleDateString('en-IN')}`, 50, 800, { align: 'left' })
-           .text(`Page ${i + 1} of ${totalPages}`, 50, 800, { align: 'right' });
-      }
-
-      doc.end();
-    } catch (error) {
-      reject(error);
-    }
-  });
+    });
 }
 
   // 3. Patient History PDF

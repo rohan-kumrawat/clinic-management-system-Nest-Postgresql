@@ -96,20 +96,24 @@ export class ReportsController {
     }
   }
 
- @Get('doctor-wise/pdf')
-@Roles(UserRole.OWNER)
-@Header('Content-Type', 'application/pdf')
-@Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
-async getDoctorWisePdf(@Res() res: Response) {
-  try {
-    // ✅ Remove date parameters - simple stats without date filter
-    const data = await this.reportsService.getDoctorWiseStats();
-    const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data);
-    res.send(pdfBuffer);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to generate PDF report' });
-  }
-}
+  @Get('doctor-wise/pdf')
+    @Roles(UserRole.OWNER)
+    @Header('Content-Type', 'application/pdf')
+    @Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
+    async getDoctorWisePdf(@Res() res: Response) {
+        try {
+            // ✅ No date parameters needed - simple all-time stats
+            const data = await this.reportsService.getDoctorWiseStats();
+            const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data);
+            res.send(pdfBuffer);
+        } catch (error) {
+            console.error('PDF Generation Error:', error);
+            res.status(500).json({ 
+                message: 'Failed to generate PDF report',
+                error: error.message 
+            });
+        }
+    }
 
   @Get('patient-history/:id/pdf')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)

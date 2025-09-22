@@ -140,27 +140,24 @@ async getDoctorWiseStats() {
         // ✅ Calculate stats for each doctor separately
         const statsPromises = doctors.map(async (doctor) => {
             try {
-                // Get sessions for this doctor
+                // Get all sessions for this doctor
                 const sessions = await this.sessionsRepository
                     .createQueryBuilder('session')
                     .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
                     .getMany();
 
-                // Get unique patient count
+                // Get unique patient count from sessions
                 const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
                 
-                // ✅ FIX: Calculate revenue from ALL payments of patients treated by this doctor
+                // ✅ OPTION 1: Calculate revenue from ALL payments of patients treated by this doctor
                 let totalRevenue = 0;
                 
-                if (sessions.length > 0) {
-                    // Get all patient IDs treated by this doctor
-                    const patientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
-                    
-                    // Calculate total payments for these patients
+                if (uniquePatientIds.length > 0) {
+                    // Calculate total payments for these patients (all payments, not just session-specific)
                     const revenueResult = await this.paymentsRepository
                         .createQueryBuilder('payment')
                         .select('COALESCE(SUM(payment.amount_paid), 0)', 'totalRevenue')
-                        .where('payment.patient_id IN (:...patientIds)', { patientIds })
+                        .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
                         .getRawOne();
                     
                     totalRevenue = parseFloat(revenueResult.totalRevenue) || 0;
@@ -186,7 +183,7 @@ async getDoctorWiseStats() {
         });
 
         const stats = await Promise.all(statsPromises);
-        console.log('Updated Stats:', stats);
+        console.log('Doctor-wise Stats with Option 1:', stats);
         return stats;
 
     } catch (error) {
@@ -433,4 +430,53 @@ async getDoctorWiseStats() {
       throw new BadRequestException('Failed to fetch pending payment patients');
     }
   }
+
+
+  //  for verification
+async verifyDoctorStats(doctorId: number) {
+    try {
+        // Get doctor
+        const doctor = await this.doctorsRepository.findOne({
+            where: { doctor_id: doctorId }
+        });
+
+        if (!doctor) {
+            throw new Error('Doctor not found');
+        }
+
+        // Get sessions for this doctor
+        const sessions = await this.sessionsRepository
+            .createQueryBuilder('session')
+            .where('session.doctor_id = :doctorId', { doctorId })
+            .getMany();
+
+        // Get unique patients
+        const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
+        
+        // Get payments for these patients
+        const payments = await this.paymentsRepository
+            .createQueryBuilder('payment')
+            .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
+            .getMany();
+
+        const totalRevenue = payments.reduce((sum, payment) => {
+            return sum + parseFloat(payment.amount_paid.toString());
+        }, 0);
+
+        return {
+            doctor: {
+                id: doctor.doctor_id,
+                name: doctor.name
+            },
+            sessions: sessions.length,
+            patients: uniquePatientIds.length,
+            payments: payments.length,
+            totalRevenue: totalRevenue,
+            verification: 'OPTION 1 - All payments of patients treated by doctor'
+        };
+    } catch (error) {
+        console.error('Verification error:', error);
+        throw error;
+    }
+}
 }
