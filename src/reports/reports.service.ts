@@ -70,34 +70,60 @@ export class ReportsService {
     }
   }
 
-  async getDoctorWiseStats() {
+ // reports.service.ts - CORRECTED alternative solution
+async getDoctorWiseStats() {
     try {
-        // ✅ METHOD 1: Use proper query with explicit table joins
-        const result = await this.doctorsRepository
-            .createQueryBuilder('doctor')
-            .leftJoin('sessions', 'session', 'session.doctor_id = doctor.doctor_id')
-            .leftJoin('payments', 'payment', 'payment.session_id = session.session_id')
-            .select([
-                'doctor.doctor_id as doctorId',
-                'doctor.name as doctorName',
-                'COUNT(DISTINCT session.patient_id) as patientCount',
-                'COUNT(session.session_id) as sessionCount',
-                'COALESCE(SUM(payment.amount_paid), 0) as revenue'
-            ])
-            .groupBy('doctor.doctor_id, doctor.name')
-            .getRawMany();
+        // ✅ Get all doctors first
+        const doctors = await this.doctorsRepository.find();
+        
+        // ✅ Calculate stats for each doctor separately - TYPE-SAFE version
+        const statsPromises = doctors.map(async (doctor) => {
+            try {
+                // Get sessions for this doctor using query builder
+                const sessions = await this.sessionsRepository
+                    .createQueryBuilder('session')
+                    .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
+                    .getMany();
 
-        console.log('Query Result:', result); // Debugging ke liye
+                // Get unique patient count
+                const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
+                
+                // Calculate revenue from sessions with payments
+                let totalRevenue = 0;
+                for (const session of sessions) {
+                    const payment = await this.paymentsRepository
+                        .createQueryBuilder('payment')
+                        .where('payment.session_id = :sessionId', { 
+                            sessionId: session.session_id 
+                        })
+                        .getOne();
+                    
+                    if (payment) {
+                        totalRevenue += parseFloat(payment.amount_paid.toString());
+                    }
+                }
 
-        // ✅ Convert and validate data
-        const stats = result.map(doctor => ({
-            doctorId: doctor.doctorId ? parseInt(doctor.doctorId) : null,
-            doctorName: doctor.doctorName || 'Unknown Doctor',
-            patientCount: parseInt(doctor.patientCount) || 0,
-            sessionCount: parseInt(doctor.sessionCount) || 0,
-            revenue: parseFloat(doctor.revenue) || 0
-        }));
+                return {
+                    doctorId: doctor.doctor_id,
+                    doctorName: doctor.name,
+                    patientCount: uniquePatientIds.length,
+                    sessionCount: sessions.length,
+                    revenue: totalRevenue
+                };
+            } catch (error) {
+                console.error(`Error calculating stats for doctor ${doctor.doctor_id}:`, error);
+                return {
+                    doctorId: doctor.doctor_id,
+                    doctorName: doctor.name,
+                    patientCount: 0,
+                    sessionCount: 0,
+                    revenue: 0
+                };
+            }
+        });
 
+        const stats = await Promise.all(statsPromises);
+        console.log('Manual Stats:', stats);
         return stats;
 
     } catch (error) {
