@@ -70,16 +70,77 @@ export class ReportsService {
     }
   }
 
- // reports.service.ts - CORRECTED alternative solution
+// async getDoctorWiseStats() {
+//     try {
+//         // ✅ Get all doctors first
+//         const doctors = await this.doctorsRepository.find();
+        
+//         // ✅ Calculate stats for each doctor separately - TYPE-SAFE version
+//         const statsPromises = doctors.map(async (doctor) => {
+//             try {
+//                 // Get sessions for this doctor using query builder
+//                 const sessions = await this.sessionsRepository
+//                     .createQueryBuilder('session')
+//                     .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
+//                     .getMany();
+
+//                 // Get unique patient count
+//                 const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
+                
+//                 // Calculate revenue from sessions with payments
+//                 let totalRevenue = 0;
+//                 for (const session of sessions) {
+//                     const payment = await this.paymentsRepository
+//                         .createQueryBuilder('payment')
+//                         .where('payment.session_id = :sessionId', { 
+//                             sessionId: session.session_id 
+//                         })
+//                         .getOne();
+                    
+//                     if (payment) {
+//                         totalRevenue += parseFloat(payment.amount_paid.toString());
+//                     }
+//                 }
+
+//                 return {
+//                     doctorId: doctor.doctor_id,
+//                     doctorName: doctor.name,
+//                     patientCount: uniquePatientIds.length,
+//                     sessionCount: sessions.length,
+//                     revenue: totalRevenue
+//                 };
+//             } catch (error) {
+//                 console.error(`Error calculating stats for doctor ${doctor.doctor_id}:`, error);
+//                 return {
+//                     doctorId: doctor.doctor_id,
+//                     doctorName: doctor.name,
+//                     patientCount: 0,
+//                     sessionCount: 0,
+//                     revenue: 0
+//                 };
+//             }
+//         });
+
+//         const stats = await Promise.all(statsPromises);
+//         console.log('Manual Stats:', stats);
+//         return stats;
+
+//     } catch (error) {
+//         console.error('Error in getDoctorWiseStats:', error);
+//         throw new BadRequestException('Failed to generate doctor-wise statistics');
+//     }
+// }
+
+// reports.service.ts - getDoctorWiseStats method ko update karo
 async getDoctorWiseStats() {
     try {
         // ✅ Get all doctors first
         const doctors = await this.doctorsRepository.find();
         
-        // ✅ Calculate stats for each doctor separately - TYPE-SAFE version
+        // ✅ Calculate stats for each doctor separately
         const statsPromises = doctors.map(async (doctor) => {
             try {
-                // Get sessions for this doctor using query builder
+                // Get sessions for this doctor
                 const sessions = await this.sessionsRepository
                     .createQueryBuilder('session')
                     .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
@@ -88,19 +149,21 @@ async getDoctorWiseStats() {
                 // Get unique patient count
                 const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
                 
-                // Calculate revenue from sessions with payments
+                // ✅ FIX: Calculate revenue from ALL payments of patients treated by this doctor
                 let totalRevenue = 0;
-                for (const session of sessions) {
-                    const payment = await this.paymentsRepository
-                        .createQueryBuilder('payment')
-                        .where('payment.session_id = :sessionId', { 
-                            sessionId: session.session_id 
-                        })
-                        .getOne();
+                
+                if (sessions.length > 0) {
+                    // Get all patient IDs treated by this doctor
+                    const patientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
                     
-                    if (payment) {
-                        totalRevenue += parseFloat(payment.amount_paid.toString());
-                    }
+                    // Calculate total payments for these patients
+                    const revenueResult = await this.paymentsRepository
+                        .createQueryBuilder('payment')
+                        .select('COALESCE(SUM(payment.amount_paid), 0)', 'totalRevenue')
+                        .where('payment.patient_id IN (:...patientIds)', { patientIds })
+                        .getRawOne();
+                    
+                    totalRevenue = parseFloat(revenueResult.totalRevenue) || 0;
                 }
 
                 return {
@@ -123,7 +186,7 @@ async getDoctorWiseStats() {
         });
 
         const stats = await Promise.all(statsPromises);
-        console.log('Manual Stats:', stats);
+        console.log('Updated Stats:', stats);
         return stats;
 
     } catch (error) {
