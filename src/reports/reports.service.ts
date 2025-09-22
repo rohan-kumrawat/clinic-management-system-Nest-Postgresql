@@ -71,40 +71,40 @@ export class ReportsService {
   }
 
   async getDoctorWiseStats() {
-      try {
-          // ✅ Simple query without date filters
-          const result = await this.doctorsRepository
-              .createQueryBuilder('doctor')
-              .leftJoin('doctor.sessions', 'session')
-              .leftJoin('session.payment', 'payment')
-              .select([
-                  'doctor.doctor_id AS doctorId',
-                  'doctor.name AS doctorName',
-                  'COUNT(DISTINCT session.patient_id) AS patientCount',
-                  'COUNT(session.session_id) AS sessionCount',
-                  'COALESCE(SUM(payment.amount_paid), 0) AS revenue'
-              ])
-              .groupBy('doctor.doctor_id, doctor.name')
-              .getRawMany();
+    try {
+        // ✅ METHOD 1: Use proper query with explicit table joins
+        const result = await this.doctorsRepository
+            .createQueryBuilder('doctor')
+            .leftJoin('sessions', 'session', 'session.doctor_id = doctor.doctor_id')
+            .leftJoin('payments', 'payment', 'payment.session_id = session.session_id')
+            .select([
+                'doctor.doctor_id as doctorId',
+                'doctor.name as doctorName',
+                'COUNT(DISTINCT session.patient_id) as patientCount',
+                'COUNT(session.session_id) as sessionCount',
+                'COALESCE(SUM(payment.amount_paid), 0) as revenue'
+            ])
+            .groupBy('doctor.doctor_id, doctor.name')
+            .getRawMany();
 
-          // ✅ Convert string counts to numbers
-          const stats = result.map(doctor => ({
-              doctorId: parseInt(doctor.doctorId),
-              doctorName: doctor.doctorName,
-              patientCount: parseInt(doctor.patientCount) || 0,
-              sessionCount: parseInt(doctor.sessionCount) || 0,
-              revenue: parseFloat(doctor.revenue) || 0
-          }));
+        console.log('Query Result:', result); // Debugging ke liye
 
-          console.log('Doctor Stats Result:', stats); // Debugging ke liye
+        // ✅ Convert and validate data
+        const stats = result.map(doctor => ({
+            doctorId: doctor.doctorId ? parseInt(doctor.doctorId) : null,
+            doctorName: doctor.doctorName || 'Unknown Doctor',
+            patientCount: parseInt(doctor.patientCount) || 0,
+            sessionCount: parseInt(doctor.sessionCount) || 0,
+            revenue: parseFloat(doctor.revenue) || 0
+        }));
 
-          return stats;
+        return stats;
 
-      } catch (error) {
-          console.error('Error in getDoctorWiseStats:', error);
-          throw new BadRequestException('Failed to generate doctor-wise statistics');
-      }
-  }
+    } catch (error) {
+        console.error('Error in getDoctorWiseStats:', error);
+        throw new BadRequestException('Failed to generate doctor-wise statistics');
+    }
+}
 
   async getPatientHistory(id: number): Promise<any> {
     if (!id || isNaN(id)) {
