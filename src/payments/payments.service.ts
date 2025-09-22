@@ -188,6 +188,8 @@ export class PaymentsService {
           'payment.payment_date',
           'payment.remaining_amount',
           'payment.created_at',
+          'payment.patient_id',
+          'payment.created_by_id',
         ])
         .leftJoin('payment.patient', 'patient')
         .addSelect(['patient.patient_id', 'patient.name'])
@@ -324,118 +326,7 @@ export class PaymentsService {
       }
   }
 
-  async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<any> {
-    try {
-      // Convert DTO to the format expected by your existing logic
-      const updateData: Partial<Payment> = {
-        amount_paid: updatePaymentDto.amount_paid,
-        payment_mode: updatePaymentDto.payment_mode,
-        remarks: updatePaymentDto.remarks,
-      };
-
-      if (updatePaymentDto.payment_date) {
-        updateData.payment_date = new Date(updatePaymentDto.payment_date);
-      }
-
-      if (updatePaymentDto.patient) {
-        updateData.patient = { patient_id: updatePaymentDto.patient.patient_id } as any;
-      }
-
-      if (updatePaymentDto.session) {
-        updateData.session = { session_id: updatePaymentDto.session.session_id } as any;
-      }
-
-      // Check if payment exists first
-      const existingPayment = await this.findOne(id);
-
-      await this.paymentsRepository.update(id, updateData);
-      const updatedPayment = await this.findOne(id);
-
-      // ✅ Filtered response
-      return {
-        payment_id: updatedPayment.payment_id,
-        patient: {
-          patient_id: updatedPayment.patient.patient_id,
-          name: updatedPayment.patient.name,
-        },
-        session: updatedPayment.session
-          ? {
-            session_id: updatedPayment.session.session_id,
-            name: (updatedPayment.session as any).name || null,
-          }
-          : null,
-        created_by: {
-          id: updatedPayment.created_by.id,
-          name: (updatedPayment.created_by as any).name || null,
-        },
-        amount_paid: updatedPayment.amount_paid,
-        payment_mode: updatedPayment.payment_mode,
-        remarks: updatedPayment.remarks,
-        payment_date: updatedPayment.payment_date,
-        remaining_amount: updatedPayment.remaining_amount,
-        created_at: updatedPayment.created_at,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to update payment #${id}: ${error.message}`, error.stack);
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException('Failed to update payment.');
-    }
-  }
-
-  async remove(id: number): Promise<any> {
-    try {
-      // First get filtered payment details
-      const payment = await this.findOne(id);
-
-      const result = await this.paymentsRepository.delete(id);
-      if (result.affected === 0) {
-        throw new NotFoundException(`Payment with ID ${id} not found`);
-      }
-
-      this.logger.log(`Payment #${id} deleted successfully.`);
-
-      // ✅ Return filtered deleted record
-      return {
-        deleted: true,
-        payment: {
-          payment_id: payment.payment_id,
-          patient: {
-            patient_id: payment.patient.patient_id,
-            name: payment.patient.name,
-          },
-          session: payment.session
-            ? {
-              session_id: payment.session.session_id,
-              name: (payment.session as any).name || null,
-            }
-            : null,
-          created_by: {
-            id: payment.created_by.id,
-            name: (payment.created_by as any).name || null,
-          },
-          amount_paid: payment.amount_paid,
-          payment_mode: payment.payment_mode,
-          remarks: payment.remarks,
-          payment_date: payment.payment_date,
-          remaining_amount: payment.remaining_amount,
-          created_at: payment.created_at,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Failed to delete payment #${id}: ${error.message}`, error.stack);
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException('Failed to delete payment.');
-    }
-  }
-
+  
   // Find Payments by Patient ID with pagination
   async findByPatientId(patientId: number, page: number = 1, limit: number = 10): Promise<{ payments: any[], total: number }> {
     try {

@@ -106,16 +106,38 @@ export class ReportsService {
     }
 
     try {
-      const patient = await this.patientsRepository.findOne({
-        where: { patient_id: id },
-        relations: ['sessions', 'sessions.payment', 'sessions.doctor', 'payments', 'assigned_doctor'],
-      });
+      const patient = await this.patientsRepository
+            .createQueryBuilder('patient')
+            .leftJoinAndSelect('patient.sessions', 'sessions')
+            .leftJoinAndSelect('sessions.payment', 'session_payment')
+            .leftJoinAndSelect('sessions.doctor', 'doctor')
+            .leftJoinAndSelect('patient.assigned_doctor', 'assigned_doctor')
+            .where('patient.patient_id = :id', { id })
+            .getOne();
 
       if (!patient) {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
 
-      // Calculate total paid and remaining amount - FIXED
+      const payments = await this.paymentsRepository
+            .createQueryBuilder('payment')
+            .select([
+                'payment.payment_id',
+                'payment.amount_paid',
+                'payment.payment_mode',
+                'payment.remarks',
+                'payment.payment_date',
+                'payment.remaining_amount',
+                'payment.created_at',
+                'payment.patient_id' 
+            ])
+            .leftJoin('payment.patient', 'patient')
+            .addSelect(['patient.patient_id', 'patient.name'])
+            .where('payment.patient_id = :patientId', { patientId: id })
+            .orderBy('payment.payment_date', 'DESC')
+            .getMany();
+
+      // Calculate total paid and remaining amount
       const totalPaid = patient.payments.reduce((sum, payment) => {
         return sum + parseFloat(payment.amount_paid.toString());
       }, 0);
@@ -139,7 +161,7 @@ export class ReportsService {
           remainingAmount
         },
         sessions: sortedSessions,
-        payments: sortedPayments,
+        payments: payments,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {

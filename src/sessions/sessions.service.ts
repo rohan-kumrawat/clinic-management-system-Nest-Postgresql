@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
+import { ShiftType } from 'src/common/enums';
 
 @Injectable()
 export class SessionsService {
@@ -47,6 +48,10 @@ export class SessionsService {
         'session.session_date',
         'session.remarks',
         'session.created_at',
+        'session.patient_id',
+        'session.doctor_id',
+        'session.ShiftType',
+        'session.created_by',
       ])
       .leftJoin('session.patient', 'patient')
       .addSelect(['patient.patient_id', 'patient.name'])
@@ -61,9 +66,22 @@ export class SessionsService {
       session_date: s.session_date,
       remarks: s.remarks,
       created_at: s.created_at,
-      patient: s.patient ? { patient_id: s.patient.patient_id, name: s.patient.name } : null,
-      doctor: s.doctor ? { doctor_id: s.doctor.doctor_id, name: s.doctor.name } : null,
-      created_by: s.created_by ? { id: s.created_by.id, name: s.created_by.name } : null,
+      patient_id: s.patient.patient_id, // ✅ Include in response
+      doctor_id: s.doctor.doctor_id,   // ✅ Include in response
+      visit_type: s.visit_type, // ✅ Include if needed
+      shift: s.shift,           // ✅ Include if needed
+      patient: s.patient ? { 
+        patient_id: s.patient.patient_id, 
+        name: s.patient.name 
+      } : null,
+      doctor: s.doctor ? { 
+        doctor_id: s.doctor.doctor_id, 
+        name: s.doctor.name 
+      } : null,
+      created_by: s.created_by ? { 
+        id: s.created_by.id, 
+        name: s.created_by.name 
+      } : null,
     }));
   } catch (error) {
     console.error('Error fetching sessions:', error);
@@ -87,6 +105,7 @@ export class SessionsService {
       session_date: session.session_date,
       remarks: session.remarks,
       created_at: session.created_at,
+      ShiftType: session['ShiftType'],
       patient: session.patient
         ? { patient_id: session.patient.patient_id, name: session.patient.name }
         : null,
