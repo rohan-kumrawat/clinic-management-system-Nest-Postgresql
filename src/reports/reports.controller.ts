@@ -24,20 +24,9 @@ export class ReportsController {
 
   @Get('doctor-wise')
   @Roles(UserRole.OWNER)
-  getDoctorWiseStats(
-    @Query('start') startDate: string,
-    @Query('end') endDate: string,
-  ) {
-    // Validate and parse dates
-    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
-    const end = endDate ? new Date(endDate) : new Date();
-    
-    // Reset time part for consistent filtering
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
-    
-    return this.reportsService.getDoctorWiseStats(start, end);
-  }
+  async getDoctorWiseStats() {
+    return this.reportsService.getDoctorWiseStats();
+}
 
   @Get('patient-history/:id')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -107,29 +96,20 @@ export class ReportsController {
     }
   }
 
-  @Get('doctor-wise/pdf')
-  @Roles(UserRole.OWNER)
-  @Header('Content-Type', 'application/pdf')
-  @Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
-  async getDoctorWisePdf(
-    @Res() res: Response,
-    @Query('start') startDate: string,
-    @Query('end') endDate: string,
-  ) {
-    try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      
-      const data = await this.reportsService.getDoctorWiseStats(start, end);
-      const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data, startDate, endDate);
-      res.send(pdfBuffer);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to generate PDF report' });
-    }
+ @Get('doctor-wise/pdf')
+@Roles(UserRole.OWNER)
+@Header('Content-Type', 'application/pdf')
+@Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
+async getDoctorWisePdf(@Res() res: Response) {
+  try {
+    // ✅ Remove date parameters - simple stats without date filter
+    const data = await this.reportsService.getDoctorWiseStats();
+    const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data);
+    res.send(pdfBuffer);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to generate PDF report' });
   }
+}
 
   @Get('patient-history/:id/pdf')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)

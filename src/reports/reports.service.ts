@@ -70,34 +70,40 @@ export class ReportsService {
     }
   }
 
-  async getDoctorWiseStats(startDate: Date, endDate: Date) {
-    // Validate dates
-    if (!startDate || !endDate) {
-      throw new BadRequestException('Start and end dates are required');
-    }
-    
-    if (startDate > endDate) {
-      throw new BadRequestException('Start date cannot be after end date');
-    }
+  async getDoctorWiseStats() {
+      try {
+          // ✅ Simple query without date filters
+          const result = await this.doctorsRepository
+              .createQueryBuilder('doctor')
+              .leftJoin('doctor.sessions', 'session')
+              .leftJoin('session.payment', 'payment')
+              .select([
+                  'doctor.doctor_id AS doctorId',
+                  'doctor.name AS doctorName',
+                  'COUNT(DISTINCT session.patient_id) AS patientCount',
+                  'COUNT(session.session_id) AS sessionCount',
+                  'COALESCE(SUM(payment.amount_paid), 0) AS revenue'
+              ])
+              .groupBy('doctor.doctor_id, doctor.name')
+              .getRawMany();
 
-    try {
-      return await this.doctorsRepository
-        .createQueryBuilder('doctor')
-        .leftJoin('doctor.sessions', 'session', 'session.session_date BETWEEN :startDate AND :endDate', {
-          startDate,
-          endDate,
-        })
-        .leftJoin('session.payment', 'payment')
-        .select('doctor.name', 'doctorName')
-        .addSelect('doctor.doctor_id', 'doctorId')
-        .addSelect('COUNT(DISTINCT session.patient_id)', 'patientCount')
-        .addSelect('COUNT(session.session_id)', 'sessionCount')
-        .addSelect('COALESCE(SUM(payment.amount_paid), 0)', 'revenue')
-        .groupBy('doctor.doctor_id')
-        .getRawMany();
-    } catch (error) {
-      throw new BadRequestException('Failed to generate doctor-wise statistics');
-    }
+          // ✅ Convert string counts to numbers
+          const stats = result.map(doctor => ({
+              doctorId: parseInt(doctor.doctorId),
+              doctorName: doctor.doctorName,
+              patientCount: parseInt(doctor.patientCount) || 0,
+              sessionCount: parseInt(doctor.sessionCount) || 0,
+              revenue: parseFloat(doctor.revenue) || 0
+          }));
+
+          console.log('Doctor Stats Result:', stats); // Debugging ke liye
+
+          return stats;
+
+      } catch (error) {
+          console.error('Error in getDoctorWiseStats:', error);
+          throw new BadRequestException('Failed to generate doctor-wise statistics');
+      }
   }
 
   async getPatientHistory(id: number): Promise<any> {

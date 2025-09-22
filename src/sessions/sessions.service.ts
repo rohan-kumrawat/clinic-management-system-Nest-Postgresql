@@ -105,7 +105,10 @@ export class SessionsService {
       session_date: session.session_date,
       remarks: session.remarks,
       created_at: session.created_at,
-      ShiftType: session['ShiftType'],
+      patient_id: session.patient.patient_id, 
+      doctor_id: session.doctor.doctor_id,  
+      visit_type: session.visit_type, 
+      shift: session.shift,
       patient: session.patient
         ? { patient_id: session.patient.patient_id, name: session.patient.name }
         : null,
@@ -176,6 +179,11 @@ export class SessionsService {
         'session.session_date',
         'session.remarks',
         'session.created_at',
+        'session.patient_id',
+        'session.doctor_id',
+        'session.visit_type',
+        'session.shift',
+        'session.created_by',
       ])
       .leftJoin('session.patient', 'patient')
       .addSelect(['patient.patient_id', 'patient.name'])
@@ -196,6 +204,10 @@ export class SessionsService {
         session_date: s.session_date,
         remarks: s.remarks,
         created_at: s.created_at,
+        patient_id: s.patient.patient_id, 
+        doctor_id: s.doctor.doctor_id,  
+        visit_type: s.visit_type, 
+        shift: s.shift,
         patient: s.patient ? { patient_id: s.patient.patient_id, name: s.patient.name } : null,
         doctor: s.doctor ? { doctor_id: s.doctor.doctor_id, name: s.doctor.name } : null,
         created_by: s.created_by ? { id: s.created_by.id, name: s.created_by.name } : null,
