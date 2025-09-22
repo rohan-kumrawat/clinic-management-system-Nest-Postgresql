@@ -3,9 +3,7 @@ import {
   Get, 
   Post, 
   Body, 
-  Param, 
-  Put, 
-  Delete, 
+  Param,  
   UseGuards, 
   Query, 
   Req, 
@@ -23,7 +21,7 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
 import { Request } from 'express';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { UpdatePaymentDto } from './dto/update-payment.dto';
+
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -106,20 +104,6 @@ export class PaymentsController {
     return this.paymentsService.findOne(id);
   }
 
-  @Put(':id')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  update(
-    @Param('id', ParseIntPipe) id: number, 
-    @Body() updatePaymentDto: UpdatePaymentDto
-  ): Promise<Payment> {
-    return this.paymentsService.update(id, updatePaymentDto);
-  }
-
-  @Delete(':id')
-  @Roles(UserRole.OWNER)
-  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.paymentsService.remove(id);
-  }
 
   // Get payments by patient ID
   

@@ -8,7 +8,7 @@ import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { User } from '../auth/entity/user.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { UpdatePaymentDto } from './dto/update-payment.dto';
+
 
 @Injectable()
 export class PaymentsService {
