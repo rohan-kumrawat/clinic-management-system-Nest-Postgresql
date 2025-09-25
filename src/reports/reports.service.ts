@@ -298,13 +298,12 @@ export class ReportsService {
           patient_id: patient.patient_id,
           name: patient.name,
           mobile: patient.mobile,
-          // assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
           total_amount: patient.total_amount,
           paid_amount: totalPaid,
           pending_amount: pendingAmount > 0 ? pendingAmount : 0,
           total_sessions:patient.total_sessions,
           paid_sessions:patient.released_sessions,
-          attended_sessions:patient.attended_sessions_count
+          attended_sessions:patient,
         };
       }).filter(patient => patient.pending_amount > 0);
 
