@@ -215,11 +215,11 @@ export class PatientsService {
     // Return the complete patient object with all stats
     return {
       ...patient,
-      assigned_doctor: formattedDoctor,
+      remaining_release_sessions: remainingReleaseSessions,
       attended_sessions_count: attendedSessionsCount,
       paid_amount: paidAmount,
       payment_status: paymentStatus,
-      remaining_release_sessions: remainingReleaseSessions
+      assigned_doctor: formattedDoctor,
     };
   } catch (error) {
     console.error('Error fetching patient:', error);
