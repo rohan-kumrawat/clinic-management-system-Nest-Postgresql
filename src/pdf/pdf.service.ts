@@ -358,79 +358,79 @@ async generateDoctorWiseReport(data: any[]): Promise<Buffer> {
 }
 
   // 3. Patient History PDF
-  async generatePatientHistoryReport(data: any): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ margin: 50 });
-        const buffers: any[] = [];
+  // async generatePatientHistoryReport(data: any): Promise<Buffer> {
+  //   return new Promise((resolve, reject) => {
+  //     try {
+  //       const doc = new PDFDocument({ margin: 50 });
+  //       const buffers: any[] = [];
         
-        doc.on('data', buffers.push.bind(buffers));
-        doc.on('end', () => {
-          const pdfData = Buffer.concat(buffers);
-          resolve(pdfData);
-        });
+  //       doc.on('data', buffers.push.bind(buffers));
+  //       doc.on('end', () => {
+  //         const pdfData = Buffer.concat(buffers);
+  //         resolve(pdfData);
+  //       });
 
-        const { patient, sessions, payments } = data;
-        const patientHeaderTitle = `Patient History - ${patient.name}`;
+  //       const { patient, sessions, payments } = data;
+  //       const patientHeaderTitle = `Patient History - ${patient.name}`;
         
-        this.addHeader(doc, patientHeaderTitle);
+  //       this.addHeader(doc, patientHeaderTitle);
         
-        // Patient Information
-        const startY = 230;
-        doc.fontSize(12).text('Patient Information', 50, startY);
-        doc
-          .text(`Name: ${patient.name}`, 50, startY + 30)
-          .text(`Age: ${patient.age}`, 50, startY + 50)
-          .text(`Mobile: ${patient.mobile}`, 50, startY + 70)
-          .text(`Status: ${patient.status}`, 50, startY + 90)
-          .text(`Assigned Doctor: ${patient.assigned_doctor?.name || 'Not assigned'}`, 50, startY + 110)
-          .text(`Total Amount: ${this.formatCurrency(parseFloat(patient.total_amount))}`, 50, startY + 130)
-          .text(`Paid Amount: ${this.formatCurrency(patient.totalPaid)}`, 50, startY + 150)
-          .text(`Remaining Amount: ${this.formatCurrency(patient.remainingAmount)}`, 50, startY + 170);
+  //       // Patient Information
+  //       const startY = 230;
+  //       doc.fontSize(12).text('Patient Information', 50, startY);
+  //       doc
+  //         .text(`Name: ${patient.name}`, 50, startY + 30)
+  //         .text(`Age: ${patient.age}`, 50, startY + 50)
+  //         .text(`Mobile: ${patient.mobile}`, 50, startY + 70)
+  //         .text(`Status: ${patient.status}`, 50, startY + 90)
+  //         .text(`Assigned Doctor: ${patient.assigned_doctor?.name || 'Not assigned'}`, 50, startY + 110)
+  //         .text(`Total Amount: ${this.formatCurrency(parseFloat(patient.total_amount))}`, 50, startY + 130)
+  //         .text(`Paid Amount: ${this.formatCurrency(patient.totalPaid)}`, 50, startY + 150)
+  //         .text(`Remaining Amount: ${this.formatCurrency(patient.remainingAmount)}`, 50, startY + 170);
 
-        // Sessions Information
-        if (sessions && sessions.length > 0) {
-          doc.addPage();
-          const sessionsHeaderTitle = `Patient Sessions - ${patient.name}`;
-          this.addHeader(doc, sessionsHeaderTitle);
+  //       // Sessions Information
+  //       if (sessions && sessions.length > 0) {
+  //         doc.addPage();
+  //         const sessionsHeaderTitle = `Patient Sessions - ${patient.name}`;
+  //         this.addHeader(doc, sessionsHeaderTitle);
           
-          const headers = ['Date', 'Doctor', 'Visit Type', 'Remarks'];
-          const rows = sessions.map((session: any) => [
-            this.formatDate(new Date(session.session_date)),
-            session.doctor.name,
-            session.visit_type || 'N/A',
-            (session.remarks || 'No remarks').substring(0, 30) + (session.remarks?.length > 30 ? '...' : '')
-          ]);
+  //         const headers = ['Date', 'Doctor', 'Visit Type', 'Remarks'];
+  //         const rows = sessions.map((session: any) => [
+  //           this.formatDate(new Date(session.session_date)),
+  //           session.doctor.name,
+  //           session.visit_type || 'N/A',
+  //           (session.remarks || 'No remarks').substring(0, 30) + (session.remarks?.length > 30 ? '...' : '')
+  //         ]);
           
-          const columnPositions = [50, 120, 250, 350];
-          this.drawTable(doc, headers, rows, columnPositions, 180, sessionsHeaderTitle);
-        }
+  //         const columnPositions = [50, 120, 250, 350];
+  //         this.drawTable(doc, headers, rows, columnPositions, 180, sessionsHeaderTitle);
+  //       }
 
-        // Payments Information
-        if (payments && payments.length > 0) {
-          doc.addPage();
-          const paymentsHeaderTitle = `Payment History - ${patient.name}`;
-          this.addHeader(doc, paymentsHeaderTitle);
+  //       // Payments Information
+  //       if (payments && payments.length > 0) {
+  //         doc.addPage();
+  //         const paymentsHeaderTitle = `Payment History - ${patient.name}`;
+  //         this.addHeader(doc, paymentsHeaderTitle);
           
-          const headers = ['Date', 'Amount Paid', 'Payment Mode', 'Remaining'];
-          const rows = payments.map((payment: any) => [
-            this.formatDate(new Date(payment.payment_date)),
-            this.formatCurrency(payment.amount_paid),
-            payment.payment_mode,
-            this.formatCurrency(payment.remaining_amount)
-          ]);
+  //         const headers = ['Date', 'Amount Paid', 'Payment Mode', 'Remaining'];
+  //         const rows = payments.map((payment: any) => [
+  //           this.formatDate(new Date(payment.payment_date)),
+  //           this.formatCurrency(payment.amount_paid),
+  //           payment.payment_mode,
+  //           this.formatCurrency(payment.remaining_amount)
+  //         ]);
           
-          const columnPositions = [50, 150, 250, 350];
-          this.drawTable(doc, headers, rows, columnPositions, 180, paymentsHeaderTitle);
-        }
+  //         const columnPositions = [50, 150, 250, 350];
+  //         this.drawTable(doc, headers, rows, columnPositions, 180, paymentsHeaderTitle);
+  //       }
 
-        this.addFooter(doc);
-        doc.end();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
+  //       this.addFooter(doc);
+  //       doc.end();
+  //     } catch (error) {
+  //       reject(error);
+  //     }
+  //   });
+  // }
 
   // 4. Financial Summary PDF
   async generateFinancialReport(data: any, startDate: string, endDate: string): Promise<Buffer> {

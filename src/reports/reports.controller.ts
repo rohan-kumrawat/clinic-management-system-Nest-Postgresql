@@ -28,11 +28,11 @@ export class ReportsController {
     return this.reportsService.getDoctorWiseStats();
 }
 
-  @Get('patient-history/:id')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  getPatientHistory(@Param('id', ParseIntPipe) patientId: number) {
-    return this.reportsService.getPatientHistory(patientId);
-  }
+  // @Get('patient-history/:id')
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // getPatientHistory(@Param('id', ParseIntPipe) patientId: number) {
+  //   return this.reportsService.getPatientHistory(patientId);
+  // }
 
 
   // Financial summary endpoint
@@ -115,19 +115,19 @@ export class ReportsController {
         }
     }
 
-  @Get('patient-history/:id/pdf')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  @Header('Content-Type', 'application/pdf')
-  @Header('Content-Disposition', 'attachment; filename="patient-history.pdf"')
-  async getPatientHistoryPdf(@Res() res: Response, @Param('id', ParseIntPipe) patientId: number) {
-    try {
-      const data = await this.reportsService.getPatientHistory(patientId);
-      const pdfBuffer = await this.pdfService.generatePatientHistoryReport(data);
-      res.send(pdfBuffer);
-    } catch (error) {
-      res.status(500).json({ message: 'Failed to generate PDF report' });
-    }
-  }
+  // @Get('patient-history/:id/pdf')
+  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  // @Header('Content-Type', 'application/pdf')
+  // @Header('Content-Disposition', 'attachment; filename="patient-history.pdf"')
+  // async getPatientHistoryPdf(@Res() res: Response, @Param('id', ParseIntPipe) patientId: number) {
+  //   try {
+  //     const data = await this.reportsService.getPatientHistory(patientId);
+  //     const pdfBuffer = await this.pdfService.generatePatientHistoryReport(data);
+  //     res.send(pdfBuffer);
+  //   } catch (error) {
+  //     res.status(500).json({ message: 'Failed to generate PDF report' });
+  //   }
+  // }
 
   @Get('financial-summary/pdf')
   @Roles(UserRole.OWNER)
@@ -201,4 +201,10 @@ export class ReportsController {
       res.status(500).json({ message: 'Failed to generate PDF report' });
     }
   }
+
+
+  @Get('verify-doctor/:doctorId')
+async verifyDoctorStats(@Param('doctorId') doctorId: number) {
+    return this.reportsService.verifyDoctorStats(doctorId);
+}
 }

@@ -70,198 +70,78 @@ export class ReportsService {
     }
   }
 
-// async getDoctorWiseStats() {
-//     try {
-//         // ✅ Get all doctors first
-//         const doctors = await this.doctorsRepository.find();
-        
-//         // ✅ Calculate stats for each doctor separately - TYPE-SAFE version
-//         const statsPromises = doctors.map(async (doctor) => {
-//             try {
-//                 // Get sessions for this doctor using query builder
-//                 const sessions = await this.sessionsRepository
-//                     .createQueryBuilder('session')
-//                     .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
-//                     .getMany();
 
-//                 // Get unique patient count
-//                 const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
-                
-//                 // Calculate revenue from sessions with payments
-//                 let totalRevenue = 0;
-//                 for (const session of sessions) {
-//                     const payment = await this.paymentsRepository
-//                         .createQueryBuilder('payment')
-//                         .where('payment.session_id = :sessionId', { 
-//                             sessionId: session.session_id 
-//                         })
-//                         .getOne();
-                    
-//                     if (payment) {
-//                         totalRevenue += parseFloat(payment.amount_paid.toString());
-//                     }
-//                 }
 
-//                 return {
-//                     doctorId: doctor.doctor_id,
-//                     doctorName: doctor.name,
-//                     patientCount: uniquePatientIds.length,
-//                     sessionCount: sessions.length,
-//                     revenue: totalRevenue
-//                 };
-//             } catch (error) {
-//                 console.error(`Error calculating stats for doctor ${doctor.doctor_id}:`, error);
-//                 return {
-//                     doctorId: doctor.doctor_id,
-//                     doctorName: doctor.name,
-//                     patientCount: 0,
-//                     sessionCount: 0,
-//                     revenue: 0
-//                 };
-//             }
-//         });
+  // async getPatientHistory(id: number): Promise<any> {
+  //   if (!id || isNaN(id)) {
+  //     throw new BadRequestException('Valid patient ID is required');
+  //   }
 
-//         const stats = await Promise.all(statsPromises);
-//         console.log('Manual Stats:', stats);
-//         return stats;
+  //   try {
+  //     const patient = await this.patientsRepository
+  //           .createQueryBuilder('patient')
+  //           .leftJoinAndSelect('patient.sessions', 'sessions')
+  //           .leftJoinAndSelect('sessions.payment', 'session_payment')
+  //           .leftJoinAndSelect('sessions.doctor', 'doctor')
+  //           .leftJoinAndSelect('patient.assigned_doctor', 'assigned_doctor')
+  //           .where('patient.patient_id = :id', { id })
+  //           .getOne();
 
-//     } catch (error) {
-//         console.error('Error in getDoctorWiseStats:', error);
-//         throw new BadRequestException('Failed to generate doctor-wise statistics');
-//     }
-// }
+  //     if (!patient) {
+  //       throw new NotFoundException(`Patient with ID ${id} not found`);
+  //     }
 
-// reports.service.ts - getDoctorWiseStats method ko update karo
-async getDoctorWiseStats() {
-    try {
-        // ✅ Get all doctors first
-        const doctors = await this.doctorsRepository.find();
-        
-        // ✅ Calculate stats for each doctor separately
-        const statsPromises = doctors.map(async (doctor) => {
-            try {
-                // Get all sessions for this doctor
-                const sessions = await this.sessionsRepository
-                    .createQueryBuilder('session')
-                    .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
-                    .getMany();
+  //     const payments = await this.paymentsRepository
+  //           .createQueryBuilder('payment')
+  //           .select([
+  //               'payment.payment_id',
+  //               'payment.amount_paid',
+  //               'payment.payment_mode',
+  //               'payment.remarks',
+  //               'payment.payment_date',
+  //               'payment.remaining_amount',
+  //               'payment.created_at',
+  //               'payment.patient_id' 
+  //           ])
+  //           .leftJoin('payment.patient', 'patient')
+  //           .addSelect(['patient.patient_id', 'patient.name'])
+  //           .where('payment.patient_id = :patientId', { patientId: id })
+  //           .orderBy('payment.payment_date', 'DESC')
+  //           .getMany();
 
-                // Get unique patient count from sessions
-                const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
-                
-                // ✅ OPTION 1: Calculate revenue from ALL payments of patients treated by this doctor
-                let totalRevenue = 0;
-                
-                if (uniquePatientIds.length > 0) {
-                    // Calculate total payments for these patients (all payments, not just session-specific)
-                    const revenueResult = await this.paymentsRepository
-                        .createQueryBuilder('payment')
-                        .select('COALESCE(SUM(payment.amount_paid), 0)', 'totalRevenue')
-                        .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
-                        .getRawOne();
-                    
-                    totalRevenue = parseFloat(revenueResult.totalRevenue) || 0;
-                }
-
-                return {
-                    doctorId: doctor.doctor_id,
-                    doctorName: doctor.name,
-                    patientCount: uniquePatientIds.length,
-                    sessionCount: sessions.length,
-                    revenue: totalRevenue
-                };
-            } catch (error) {
-                console.error(`Error calculating stats for doctor ${doctor.doctor_id}:`, error);
-                return {
-                    doctorId: doctor.doctor_id,
-                    doctorName: doctor.name,
-                    patientCount: 0,
-                    sessionCount: 0,
-                    revenue: 0
-                };
-            }
-        });
-
-        const stats = await Promise.all(statsPromises);
-        console.log('Doctor-wise Stats with Option 1:', stats);
-        return stats;
-
-    } catch (error) {
-        console.error('Error in getDoctorWiseStats:', error);
-        throw new BadRequestException('Failed to generate doctor-wise statistics');
-    }
-}
-
-  async getPatientHistory(id: number): Promise<any> {
-    if (!id || isNaN(id)) {
-      throw new BadRequestException('Valid patient ID is required');
-    }
-
-    try {
-      const patient = await this.patientsRepository
-            .createQueryBuilder('patient')
-            .leftJoinAndSelect('patient.sessions', 'sessions')
-            .leftJoinAndSelect('sessions.payment', 'session_payment')
-            .leftJoinAndSelect('sessions.doctor', 'doctor')
-            .leftJoinAndSelect('patient.assigned_doctor', 'assigned_doctor')
-            .where('patient.patient_id = :id', { id })
-            .getOne();
-
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
-      }
-
-      const payments = await this.paymentsRepository
-            .createQueryBuilder('payment')
-            .select([
-                'payment.payment_id',
-                'payment.amount_paid',
-                'payment.payment_mode',
-                'payment.remarks',
-                'payment.payment_date',
-                'payment.remaining_amount',
-                'payment.created_at',
-                'payment.patient_id' 
-            ])
-            .leftJoin('payment.patient', 'patient')
-            .addSelect(['patient.patient_id', 'patient.name'])
-            .where('payment.patient_id = :patientId', { patientId: id })
-            .orderBy('payment.payment_date', 'DESC')
-            .getMany();
-
-      // Calculate total paid and remaining amount
-      const totalPaid = patient.payments.reduce((sum, payment) => {
-        return sum + parseFloat(payment.amount_paid.toString());
-      }, 0);
+  //     // Calculate total paid and remaining amount
+  //     const totalPaid = patient.payments.reduce((sum, payment) => {
+  //       return sum + parseFloat(payment.amount_paid.toString());
+  //     }, 0);
       
-      const remainingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
+  //     const remainingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
 
-      // Sort sessions by date descending
-      const sortedSessions = patient.sessions.sort(
-        (a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
-      );
+  //     // Sort sessions by date descending
+  //     const sortedSessions = patient.sessions.sort(
+  //       (a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
+  //     );
 
-      // Sort payments by date descending
-      const sortedPayments = patient.payments.sort(
-        (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
-      );
+  //     // Sort payments by date descending
+  //     const sortedPayments = patient.payments.sort(
+  //       (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+  //     );
 
-      return {
-        patient: {
-          ...patient,
-          totalPaid,
-          remainingAmount
-        },
-        sessions: sortedSessions,
-        payments: payments,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to fetch patient history');
-    }
-  }
+  //     return {
+  //       patient: {
+  //         ...patient,
+  //         totalPaid,
+  //         remainingAmount
+  //       },
+  //       sessions: sortedSessions,
+  //       payments: payments,
+  //     };
+  //   } catch (error) {
+  //     if (error instanceof NotFoundException) {
+  //       throw error;
+  //     }
+  //     throw new BadRequestException('Failed to fetch patient history');
+  //   }
+  // }
 
   async getFinancialSummary(startDate: Date, endDate: Date) {
     if (!startDate || !endDate) {
@@ -418,9 +298,11 @@ async getDoctorWiseStats() {
           patient_id: patient.patient_id,
           name: patient.name,
           mobile: patient.mobile,
-          assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
+          // assigned_doctor: patient.assigned_doctor ? patient.assigned_doctor.name : 'Not Assigned',
           total_amount: patient.total_amount,
           paid_amount: totalPaid,
+          paid_sessions:patient.released_sessions,
+          total_sessions:patient.total_sessions,
           pending_amount: pendingAmount > 0 ? pendingAmount : 0
         };
       }).filter(patient => patient.pending_amount > 0);
@@ -431,10 +313,87 @@ async getDoctorWiseStats() {
     }
   }
 
+  async getDoctorWiseStats() {
+    try {
+        console.log('🔍 Starting doctor-wise stats calculation...');
+        
+        // ✅ Get all doctors first
+        const doctors = await this.doctorsRepository.find();
+        console.log(`📊 Found ${doctors.length} doctors`);
 
-  //  for verification
+        // ✅ Calculate stats for each doctor separately
+        const statsPromises = doctors.map(async (doctor) => {
+            try {
+                console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
+                
+                // Get all sessions for this doctor
+                const sessions = await this.sessionsRepository
+                    .createQueryBuilder('session')
+                    .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
+                    .getMany();
+
+                console.log(`📅 Doctor ${doctor.doctor_id} has ${sessions.length} sessions`);
+
+                // Get unique patient count from sessions
+                const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
+                console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatientIds.length} patients:`, uniquePatientIds);
+                
+                // ✅ OPTION 1: Calculate revenue from ALL payments of patients treated by this doctor
+                let totalRevenue = 0;
+                
+                if (uniquePatientIds.length > 0) {
+                    // ✅ FIX: Use proper query with patient_id directly
+                    const revenueResult = await this.paymentsRepository
+                        .createQueryBuilder('payment')
+                        .select('COALESCE(SUM(payment.amount_paid), 0)', 'totalRevenue')
+                        .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
+                        .getRawOne();
+                    
+                    console.log(`💰 Revenue query result for doctor ${doctor.doctor_id}:`, revenueResult);
+                    
+                    totalRevenue = parseFloat(revenueResult.totalRevenue) || 0;
+                }
+
+                console.log(`🎯 Final stats for doctor ${doctor.doctor_id}:`, {
+                    patients: uniquePatientIds.length,
+                    sessions: sessions.length,
+                    revenue: totalRevenue
+                });
+
+                return {
+                    doctorId: doctor.doctor_id,
+                    doctorName: doctor.name,
+                    patientCount: uniquePatientIds.length,
+                    sessionCount: sessions.length,
+                    revenue: totalRevenue
+                };
+            } catch (error) {
+                console.error(`❌ Error for doctor ${doctor.doctor_id}:`, error);
+                return {
+                    doctorId: doctor.doctor_id,
+                    doctorName: doctor.name,
+                    patientCount: 0,
+                    sessionCount: 0,
+                    revenue: 0
+                };
+            }
+        });
+
+        const stats = await Promise.all(statsPromises);
+        console.log('📈 Final doctor-wise stats:', stats);
+        return stats;
+
+    } catch (error) {
+        console.error('💥 Error in getDoctorWiseStats:', error);
+        throw new BadRequestException('Failed to generate doctor-wise statistics');
+    }
+  }
+
+// ✅ Add this verification function
 async verifyDoctorStats(doctorId: number) {
     try {
+        console.log(`🔍 Verifying stats for doctor ${doctorId}`);
+        
         // Get doctor
         const doctor = await this.doctorsRepository.findOne({
             where: { doctor_id: doctorId }
@@ -450,6 +409,8 @@ async verifyDoctorStats(doctorId: number) {
             .where('session.doctor_id = :doctorId', { doctorId })
             .getMany();
 
+        console.log(`📅 Sessions found:`, sessions);
+
         // Get unique patients
         const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
         
@@ -458,6 +419,8 @@ async verifyDoctorStats(doctorId: number) {
             .createQueryBuilder('payment')
             .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
             .getMany();
+
+        console.log(`💰 Payments found:`, payments);
 
         const totalRevenue = payments.reduce((sum, payment) => {
             return sum + parseFloat(payment.amount_paid.toString());
@@ -469,14 +432,18 @@ async verifyDoctorStats(doctorId: number) {
                 name: doctor.name
             },
             sessions: sessions.length,
-            patients: uniquePatientIds.length,
+            patients: uniquePatientIds,
             payments: payments.length,
             totalRevenue: totalRevenue,
-            verification: 'OPTION 1 - All payments of patients treated by doctor'
+            verification: 'OPTION 1 - All payments of patients treated by doctor',
+            debug: {
+                sessions_sample: sessions.slice(0, 3),
+                payments_sample: payments.slice(0, 3)
+            }
         };
     } catch (error) {
         console.error('Verification error:', error);
-        throw error;
+        return { error: error.message };
     }
 }
 }
