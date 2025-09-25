@@ -302,8 +302,7 @@ export class ReportsService {
           paid_amount: totalPaid,
           pending_amount: pendingAmount > 0 ? pendingAmount : 0,
           total_sessions:patient.total_sessions,
-          paid_sessions:patient.released_sessions,
-          attended_sessions:patient,
+          paid_sessions:patient.released_sessions
         };
       }).filter(patient => patient.pending_amount > 0);
 
