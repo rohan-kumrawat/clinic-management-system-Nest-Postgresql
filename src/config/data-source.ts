@@ -14,16 +14,16 @@ const AppDataSource = new DataSource({
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../migrations/*.ts'],
   migrationsTableName: 'migrations',
-  synchronize: false,
+  synchronize: process.env.NODE_ENV !== 'production', // DEVELOPMENT MEIN TRUE
   logging: process.env.NODE_ENV === 'development',
   
-  // Connection pooling settings - UPDATED FOR RAILWAY EXTERNAL CONNECTION
+  // Connection pooling settings
   extra: {
     max: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'), // Increased to 60 seconds
-    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000'), // Increased to 10 seconds
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
+    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000'),
     
-    // SSL Configuration - UPDATED FOR EXTERNAL CONNECTIONS
+    // SSL Configuration
     ssl: process.env.NODE_ENV === 'production' || process.env.DB_SSL === 'true' ? { 
       rejectUnauthorized: false 
     } : false,
