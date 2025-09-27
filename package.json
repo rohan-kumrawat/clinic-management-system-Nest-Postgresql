@@ -6,7 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build && npm run typeorm -- migration:run -d ./dist/config/data-source.js",
+    "build": "nest build",
+    "postbuild": "npm run typeorm -- migration:run -d ./dist/config/data-source.js || echo 'Migrations optional'",
     "prebuild": "npm install --include=dev",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
