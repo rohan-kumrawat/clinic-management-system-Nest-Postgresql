@@ -14,7 +14,8 @@ const AppDataSource = new DataSource({
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../migrations/*.ts'],
   migrationsTableName: 'migrations',
-  synchronize: process.env.NODE_ENV !== 'production', // DEVELOPMENT MEIN TRUE
+  //synchronize: process.env.NODE_ENV !== 'production', // DEVELOPMENT MEIN TRUE
+  synchronize:true,
   logging: process.env.NODE_ENV === 'development',
   
   // Connection pooling settings
