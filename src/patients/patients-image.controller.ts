@@ -133,6 +133,28 @@ async clearAllPatientReports(@Param('id', ParseIntPipe) patientId: number) {
     }
   }
 
+  @Get(':id/reports')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async getPatientReports(
+  @Param('id', ParseIntPipe) patientId: number,
+) {
+  try {
+    const reports = await this.patientsService.getPatientReports(patientId);
+
+    return {
+      success: true,
+      message: `Found ${reports.length} report(s) for patient`,
+      data: {
+        patient_id: patientId,
+        total_reports: reports.length,
+        reports: reports
+      },
+    };
+  } catch (error) {
+    throw new BadRequestException(error.message);
+  }
+}
+
   // Keep the old endpoint for backward compatibility (single image)
   @Post(':id/upload-image')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)

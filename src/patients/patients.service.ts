@@ -344,6 +344,19 @@ export class PatientsService {
     return report;
   }
 
+  async getPatientReports(patientId: number): Promise<any[]> {
+  const patient = await this.patientsRepository.findOne({ 
+    where: { patient_id: patientId } 
+  });
+  
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+  }
+
+  // Return reports array or empty array if no reports
+  return patient.reports || [];
+}
+
   async remove(id: number): Promise<{ message: string }> {
     try {
       const patient = await this.patientsRepository.findOne({
