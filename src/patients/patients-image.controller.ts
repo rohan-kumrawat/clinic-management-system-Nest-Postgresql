@@ -93,6 +93,28 @@ export class PatientsImageController {
     }
   }
 
+  @Delete(':id/clear-all-reports')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async clearAllPatientReports(@Param('id', ParseIntPipe) patientId: number) {
+  try {
+    const updatedPatient = await this.patientsService.clearAllPatientReports(patientId);
+
+    return {
+      success: true,
+      message: 'All reports cleared successfully',
+      data: {
+        patient: {
+          id: updatedPatient.patient_id,
+          name: updatedPatient.name,
+          total_reports: 0,
+        },
+      },
+    };
+  } catch (error) {
+    throw new BadRequestException(error.message);
+  }
+}
+
   @Get(':id/reports/:reportId')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async getPatientReport(

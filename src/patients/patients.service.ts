@@ -270,7 +270,7 @@ export class PatientsService {
     return await this.patientsRepository.save(patient);
   }
 
-  // ADD method to remove a specific report
+  // Remove a specific report
   async removePatientReport(patientId: number, reportId: string): Promise<Patient> {
     const patient = await this.patientsRepository.findOne({
       where: { patient_id: patientId }
@@ -302,7 +302,30 @@ export class PatientsService {
     return await this.patientsRepository.save(patient);
   }
 
-  // ADD method to clear all reports
+  async clearAllPatientReports(patientId: number): Promise<Patient> {
+  const patient = await this.patientsRepository.findOne({ 
+    where: { patient_id: patientId } 
+  });
+  
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+  }
+
+  if (patient.reports && patient.reports.length > 0) {
+    // Delete all images from Cloudinary
+    const deletePromises = patient.reports.map(report => 
+      this.cloudinaryService.deleteImage(report.public_id)
+    );
+    await Promise.all(deletePromises);
+
+    // Clear reports array
+    patient.reports = [];
+  }
+
+  return await this.patientsRepository.save(patient);
+}
+
+  // Get a report by its ID
   async getPatientReport(patientId: number, reportId: string) {
     const patient = await this.patientsRepository.findOne({
       where: { patient_id: patientId }
