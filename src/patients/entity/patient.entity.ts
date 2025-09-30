@@ -106,21 +106,17 @@ export class Patient {
     })
     gender: Gender;
 
-  @Column({ 
-  name: 'image_url', 
-  type: 'varchar', 
-  nullable: true,
-  length: 500 
-})
-image_url: string | null ;
 
-@Column({ 
-  name: 'image_public_id', 
-  type: 'varchar', 
-  nullable: true,
-  length: 100 
-})
-image_public_id: string | null ;  
+// For multiple images/reports:
+@Column({ type: 'jsonb', nullable: true })
+reports: Array<{
+  url: string;
+  public_id: string;
+  filename: string;
+  uploaded_at: Date;
+  description?: string;
+}>;
+
 
   @CreateDateColumn()
   created_at: Date;

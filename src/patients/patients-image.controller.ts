@@ -4,13 +4,13 @@ import {
   Delete,
   Param,
   UseInterceptors,
-  UploadedFile,
+  UploadedFiles,
   BadRequestException,
   ParseIntPipe,
+  Body,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { PatientsService } from './patients.service';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
@@ -22,41 +22,42 @@ import { UseGuards } from '@nestjs/common';
 export class PatientsImageController {
   constructor(
     private readonly patientsService: PatientsService,
-    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  @Post(':id/upload-image')
+  @Post(':id/upload-reports')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  @UseInterceptors(FileInterceptor('image'))
-  async uploadPatientImage(
+  @UseInterceptors(FilesInterceptor('reports', 10)) // ← MULTIPLE FILES (max 10)
+  async uploadPatientReports(
     @Param('id', ParseIntPipe) patientId: number,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('descriptions') descriptions?: string[], // Optional descriptions for each file
   ) {
     try {
-      if (!file) {
-        throw new BadRequestException('No image file uploaded');
+      if (!files || files.length === 0) {
+        throw new BadRequestException('No report files uploaded');
       }
 
-      // Upload to Cloudinary
-      const uploadResult = await this.cloudinaryService.uploadPatientImage(file);
-      
-      // Update patient record
-      const updatedPatient = await this.patientsService.updatePatientImage(
+      // Convert descriptions string to array if it's a string
+      let descArray: string[] = [];
+      if (descriptions) {
+        descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
+      }
+
+      const updatedPatient = await this.patientsService.uploadPatientReports(
         patientId,
-        uploadResult.url,
-        uploadResult.public_id
+        files,
+        descArray
       );
 
       return {
         success: true,
-        message: 'Image uploaded successfully',
+        message: `${files.length} report(s) uploaded successfully`,
         data: {
-          imageUrl: uploadResult.url,
-          publicId: uploadResult.public_id,
           patient: {
             id: updatedPatient.patient_id,
             name: updatedPatient.name,
-            image_url: updatedPatient.image_url,
+            total_reports: updatedPatient.reports ? updatedPatient.reports.length : 0,
+            reports: updatedPatient.reports,
           },
         },
       };
@@ -65,20 +66,80 @@ export class PatientsImageController {
     }
   }
 
-  @Delete(':id/remove-image')
+  @Delete(':id/reports/:reportIndex')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async removePatientImage(@Param('id', ParseIntPipe) patientId: number) {
+  async removePatientReport(
+    @Param('id', ParseIntPipe) patientId: number,
+    @Param('reportIndex', ParseIntPipe) reportIndex: number,
+  ) {
     try {
-      const updatedPatient = await this.patientsService.removePatientImage(patientId);
+      const updatedPatient = await this.patientsService.removePatientReport(patientId, reportIndex);
 
       return {
         success: true,
-        message: 'Image removed successfully',
+        message: 'Report removed successfully',
         data: {
           patient: {
             id: updatedPatient.patient_id,
             name: updatedPatient.name,
-            image_url: updatedPatient.image_url,
+            total_reports: updatedPatient.reports ? updatedPatient.reports.length : 0,
+          },
+        },
+      };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @Delete(':id/clear-all-reports')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async clearAllPatientReports(@Param('id', ParseIntPipe) patientId: number) {
+    try {
+      const updatedPatient = await this.patientsService.clearAllPatientReports(patientId);
+
+      return {
+        success: true,
+        message: 'All reports cleared successfully',
+        data: {
+          patient: {
+            id: updatedPatient.patient_id,
+            name: updatedPatient.name,
+            total_reports: 0,
+          },
+        },
+      };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  // Keep the old endpoint for backward compatibility (single image)
+  @Post(':id/upload-image')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  @UseInterceptors(FilesInterceptor('image', 1)) // Single file for backward compatibility
+  async uploadPatientImage(
+    @Param('id', ParseIntPipe) patientId: number,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    try {
+      if (!files || files.length === 0) {
+        throw new BadRequestException('No image file uploaded');
+      }
+
+      const updatedPatient = await this.patientsService.uploadPatientReports(
+        patientId,
+        [files[0]], // Single file
+        ['Profile Image'] // Default description
+      );
+
+      return {
+        success: true,
+        message: 'Image uploaded successfully',
+        data: {
+          patient: {
+            id: updatedPatient.patient_id,
+            name: updatedPatient.name,
+            reports: updatedPatient.reports,
           },
         },
       };

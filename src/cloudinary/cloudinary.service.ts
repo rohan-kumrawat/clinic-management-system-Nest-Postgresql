@@ -12,60 +12,60 @@ export class CloudinaryService {
     });
   }
 
-  async uploadPatientImage(file: Express.Multer.File): Promise<{ url: string; public_id: string }> {
-    try {
-      if (!file) {
-        throw new BadRequestException('No file provided');
-      }
+  // async uploadPatientImage(file: Express.Multer.File): Promise<{ url: string; public_id: string }> {
+  //   try {
+  //     if (!file) {
+  //       throw new BadRequestException('No file provided');
+  //     }
 
-      // Check file size
-      if (file.size > 5 * 1024 * 1024) {
-        throw new BadRequestException('File size too large. Maximum 5MB allowed.');
-      }
+  //     // Check file size
+  //     if (file.size > 5 * 1024 * 1024) {
+  //       throw new BadRequestException('File size too large. Maximum 5MB allowed.');
+  //     }
 
-      // Check file type
-      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException('Unsupported file type. Only JPG, JPEG, PNG, WEBP are allowed.');
-      }
+  //     // Check file type
+  //     const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  //     if (!allowedMimeTypes.includes(file.mimetype)) {
+  //       throw new BadRequestException('Unsupported file type. Only JPG, JPEG, PNG, WEBP are allowed.');
+  //     }
 
-      // Optimize image
-      const optimizedBuffer = await this.optimizeImage(file.buffer);
+  //     // Optimize image
+  //     const optimizedBuffer = await this.optimizeImage(file.buffer);
 
-      // Convert to base64 for Cloudinary
-      const base64Image = optimizedBuffer.toString('base64');
-      const dataURI = `data:${file.mimetype};base64,${base64Image}`;
+  //     // Convert to base64 for Cloudinary
+  //     const base64Image = optimizedBuffer.toString('base64');
+  //     const dataURI = `data:${file.mimetype};base64,${base64Image}`;
 
-      return new Promise((resolve, reject) => {
-        cloudinary.uploader.upload(
-          dataURI,
-          {
-            folder: 'clinic/patients',
-            resource_type: 'image',
-            quality: 'auto',
-            fetch_format: 'auto',
-            width: 800,
-            height: 800,
-            crop: 'limit',
-          },
-          (error, result) => {
-            if (error) {
-              reject(new BadRequestException(`Upload failed: ${error.message}`));
-            } else if (result) { // Check if result exists
-              resolve({
-                url: result.secure_url,
-                public_id: result.public_id,
-              });
-            }else {
-              reject(new BadRequestException('Upload failed: No result from Cloudinary'));
-            }
-          },
-        );
-      });
-    } catch (error) {
-      throw new BadRequestException(`Image upload failed: ${error.message}`);
-    }
-  }
+  //     return new Promise((resolve, reject) => {
+  //       cloudinary.uploader.upload(
+  //         dataURI,
+  //         {
+  //           folder: 'clinic/patients',
+  //           resource_type: 'image',
+  //           quality: 'auto',
+  //           fetch_format: 'auto',
+  //           width: 800,
+  //           height: 800,
+  //           crop: 'limit',
+  //         },
+  //         (error, result) => {
+  //           if (error) {
+  //             reject(new BadRequestException(`Upload failed: ${error.message}`));
+  //           } else if (result) { // Check if result exists
+  //             resolve({
+  //               url: result.secure_url,
+  //               public_id: result.public_id,
+  //             });
+  //           }else {
+  //             reject(new BadRequestException('Upload failed: No result from Cloudinary'));
+  //           }
+  //         },
+  //       );
+  //     });
+  //   } catch (error) {
+  //     throw new BadRequestException(`Image upload failed: ${error.message}`);
+  //   }
+  // }
 
   private async optimizeImage(buffer: Buffer): Promise<Buffer> {
     try {
@@ -126,4 +126,59 @@ export class CloudinaryService {
       console.error('Failed to delete image from Cloudinary:', error);
     }
   }
+
+  async uploadMultipleImages(files: Express.Multer.File[]): Promise<{ url: string; public_id: string; filename: string }[]> {
+  try {
+    const uploadPromises = files.map(async (file) => {
+      // Validate file type
+      if (!file.mimetype.startsWith('image/')) {
+        throw new BadRequestException(`Unsupported file type: ${file.originalname}`);
+      }
+
+      // Check file size
+      if (file.size > 5 * 1024 * 1024) {
+        throw new BadRequestException(`File too large: ${file.originalname}. Maximum 5MB allowed.`);
+      }
+
+      // Optimize image
+      const optimizedBuffer = await this.optimizeImage(file.buffer);
+
+      // Convert to base64 for Cloudinary
+      const base64Image = optimizedBuffer.toString('base64');
+      const dataURI = `data:${file.mimetype};base64,${base64Image}`;
+
+      return new Promise<{ url: string; public_id: string; filename: string }>((resolve, reject) => {
+        cloudinary.uploader.upload(
+          dataURI,
+          {
+            folder: 'clinic/patients/reports',
+            resource_type: 'image',
+            quality: 'auto',
+            fetch_format: 'auto',
+            width: 1200, // Larger for reports readability
+            height: 1200,
+            crop: 'limit',
+          },
+          (error, result) => {
+            if (error) {
+              reject(new BadRequestException(`Upload failed for ${file.originalname}: ${error.message}`));
+            } else if (result) {
+              resolve({
+                url: result.secure_url,
+                public_id: result.public_id,
+                filename: file.originalname,
+              });
+            } else {
+              reject(new BadRequestException(`Upload failed for ${file.originalname}: No result from Cloudinary`));
+            }
+          },
+        );
+      });
+    });
+
+    return await Promise.all(uploadPromises);
+  } catch (error) {
+    throw new BadRequestException(`Multiple image upload failed: ${error.message}`);
+  }
+}
 }
