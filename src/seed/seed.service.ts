@@ -17,7 +17,7 @@ export class SeedService implements OnApplicationBootstrap {
 
   async seedAdmin() {
     const adminExists = await this.userRepository.findOne({ 
-      where: { email: 'admin@clinic.com' } 
+      where: { email: 'rohanrkmail@gmail.com' } 
     });
     
     if (!adminExists) {
