@@ -115,20 +115,6 @@ export class ReportsController {
         }
     }
 
-  // @Get('patient-history/:id/pdf')
-  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  // @Header('Content-Type', 'application/pdf')
-  // @Header('Content-Disposition', 'attachment; filename="patient-history.pdf"')
-  // async getPatientHistoryPdf(@Res() res: Response, @Param('id', ParseIntPipe) patientId: number) {
-  //   try {
-  //     const data = await this.reportsService.getPatientHistory(patientId);
-  //     const pdfBuffer = await this.pdfService.generatePatientHistoryReport(data);
-  //     res.send(pdfBuffer);
-  //   } catch (error) {
-  //     res.status(500).json({ message: 'Failed to generate PDF report' });
-  //   }
-  // }
-
   @Get('financial-summary/pdf')
   @Roles(UserRole.OWNER)
   @Header('Content-Type', 'application/pdf')
@@ -206,5 +192,12 @@ export class ReportsController {
   @Get('verify-doctor/:doctorId')
 async verifyDoctorStats(@Param('doctorId') doctorId: number) {
     return this.reportsService.verifyDoctorStats(doctorId);
+}
+
+
+@Get('debug/doctor-stats/:doctorId')
+@Roles(UserRole.OWNER)
+async debugDoctorStats(@Param('doctorId', ParseIntPipe) doctorId: number) {
+  return this.reportsService.verifyDoctorStats(doctorId);
 }
 }

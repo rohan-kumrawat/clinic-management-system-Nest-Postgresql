@@ -18,7 +18,7 @@ export class ReportsService {
     private paymentsRepository: Repository<Payment>,
     @InjectRepository(Doctor)
     private doctorsRepository: Repository<Doctor>,
-  ) {}
+  ) { }
 
   async getDashboardStats() {
     try {
@@ -36,7 +36,7 @@ export class ReportsService {
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const todayRevenue = await this.paymentsRepository
         .createQueryBuilder('payment')
         .select('SUM(payment.amount_paid)', 'total')
@@ -113,7 +113,7 @@ export class ReportsService {
   //     const totalPaid = patient.payments.reduce((sum, payment) => {
   //       return sum + parseFloat(payment.amount_paid.toString());
   //     }, 0);
-      
+
   //     const remainingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
 
   //     // Sort sessions by date descending
@@ -147,16 +147,16 @@ export class ReportsService {
     if (!startDate || !endDate) {
       throw new BadRequestException('Start and end dates are required');
     }
-    
+
     if (startDate > endDate) {
       throw new BadRequestException('Start date cannot be after end date');
     }
-    
+
     try {
       // Adjust end date to include the entire day
       const adjustedEndDate = new Date(endDate);
       adjustedEndDate.setHours(23, 59, 59, 999);
-      
+
       const payments = await this.paymentsRepository
         .createQueryBuilder('payment')
         .select('payment.payment_mode', 'paymentMode')
@@ -167,9 +167,9 @@ export class ReportsService {
         })
         .groupBy('payment.payment_mode')
         .getRawMany();
-      
+
       const totalRevenue = payments.reduce((sum, item) => sum + parseFloat(item.total), 0);
-      
+
       return {
         period: { startDate, endDate },
         revenueByPaymentMode: payments,
@@ -179,7 +179,7 @@ export class ReportsService {
       throw new BadRequestException('Failed to generate financial summary');
     }
   }
-  
+
   async getMonthlyFinancialReport(year: number, month: number) {
     try {
       if (!year || !month) {
@@ -291,7 +291,7 @@ export class ReportsService {
         const totalPaid = patient.payments.reduce((sum, payment) => {
           return sum + parseFloat(payment.amount_paid.toString());
         }, 0);
-        
+
         const pendingAmount = parseFloat(patient.total_amount.toString()) - totalPaid;
 
         return {
@@ -301,8 +301,8 @@ export class ReportsService {
           total_amount: patient.total_amount,
           paid_amount: totalPaid,
           pending_amount: pendingAmount > 0 ? pendingAmount : 0,
-          total_sessions:patient.total_sessions,
-          paid_sessions:patient.released_sessions
+          total_sessions: patient.total_sessions,
+          paid_sessions: patient.released_sessions
         };
       }).filter(patient => patient.pending_amount > 0);
 
@@ -313,136 +313,134 @@ export class ReportsService {
   }
 
   async getDoctorWiseStats() {
-    try {
-        console.log('🔍 Starting doctor-wise stats calculation...');
-        
-        // ✅ Get all doctors first
-        const doctors = await this.doctorsRepository.find();
-        console.log(`📊 Found ${doctors.length} doctors`);
+  try {
+    console.log('🔍 Starting doctor-wise stats calculation...');
 
-        // ✅ Calculate stats for each doctor separately
-        const statsPromises = doctors.map(async (doctor) => {
-            try {
-                console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
-                
-                // Get all sessions for this doctor
-                const sessions = await this.sessionsRepository
-                    .createQueryBuilder('session')
-                    .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
-                    .getMany();
+    // Get all doctors with their relations
+    const doctors = await this.doctorsRepository.find({
+      relations: ['sessions', 'sessions.patient', 'sessions.patient.payments']
+    });
 
-                console.log(`📅 Doctor ${doctor.doctor_id} has ${sessions.length} sessions`);
+    console.log(`📊 Found ${doctors.length} doctors`);
 
-                // Get unique patient count from sessions
-                const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
-                console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatientIds.length} patients:`, uniquePatientIds);
-                
-                // ✅ OPTION 1: Calculate revenue from ALL payments of patients treated by this doctor
-                let totalRevenue = 0;
-                
-                if (uniquePatientIds.length > 0) {
-                    // ✅ FIX: Use proper query with patient_id directly
-                    const revenueResult = await this.paymentsRepository
-                        .createQueryBuilder('payment')
-                        .select('COALESCE(SUM(payment.amount_paid), 0)', 'totalRevenue')
-                        .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
-                        .getRawOne();
-                    
-                    console.log(`💰 Revenue query result for doctor ${doctor.doctor_id}:`, revenueResult);
-                    
-                    totalRevenue = parseFloat(revenueResult.totalRevenue) || 0;
-                }
+    const stats = doctors.map(doctor => {
+      console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
 
-                console.log(`🎯 Final stats for doctor ${doctor.doctor_id}:`, {
-                    patients: uniquePatientIds.length,
-                    sessions: sessions.length,
-                    revenue: totalRevenue
-                });
+      // Get all sessions for this doctor
+      const sessions = doctor.sessions || [];
+      console.log(`📅 Doctor ${doctor.doctor_id} has ${sessions.length} sessions`);
 
-                return {
-                    doctorId: doctor.doctor_id,
-                    doctorName: doctor.name,
-                    patientCount: uniquePatientIds.length,
-                    sessionCount: sessions.length,
-                    revenue: totalRevenue
-                };
-            } catch (error) {
-                console.error(`❌ Error for doctor ${doctor.doctor_id}:`, error);
-                return {
-                    doctorId: doctor.doctor_id,
-                    doctorName: doctor.name,
-                    patientCount: 0,
-                    sessionCount: 0,
-                    revenue: 0
-                };
-            }
-        });
-
-        const stats = await Promise.all(statsPromises);
-        console.log('📈 Final doctor-wise stats:', stats);
-        return stats;
-
-    } catch (error) {
-        console.error('💥 Error in getDoctorWiseStats:', error);
-        throw new BadRequestException('Failed to generate doctor-wise statistics');
-    }
-  }
-
-// ✅ Add this verification function
-async verifyDoctorStats(doctorId: number) {
-    try {
-        console.log(`🔍 Verifying stats for doctor ${doctorId}`);
-        
-        // Get doctor
-        const doctor = await this.doctorsRepository.findOne({
-            where: { doctor_id: doctorId }
-        });
-
-        if (!doctor) {
-            throw new Error('Doctor not found');
+      // Get unique patients from sessions
+      const uniquePatients = new Map();
+      
+      sessions.forEach(session => {
+        if (session.patient) {
+          uniquePatients.set(session.patient.patient_id, session.patient);
         }
+      });
 
-        // Get sessions for this doctor
-        const sessions = await this.sessionsRepository
-            .createQueryBuilder('session')
-            .where('session.doctor_id = :doctorId', { doctorId })
-            .getMany();
+      console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatients.size} unique patients`);
 
-        console.log(`📅 Sessions found:`, sessions);
+      // Calculate total revenue from all patients treated by this doctor
+      let totalRevenue = 0;
+      let totalSessions = sessions.length;
+      let totalPatients = uniquePatients.size;
 
-        // Get unique patients
-        const uniquePatientIds = [...new Set(sessions.map(s => (s as any).patient_id))];
-        
-        // Get payments for these patients
-        const payments = await this.paymentsRepository
-            .createQueryBuilder('payment')
-            .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
-            .getMany();
-
-        console.log(`💰 Payments found:`, payments);
-
-        const totalRevenue = payments.reduce((sum, payment) => {
+      // Calculate revenue from all payments of patients treated by this doctor
+      uniquePatients.forEach(patient => {
+        if (patient.payments && patient.payments.length > 0) {
+          const patientRevenue = patient.payments.reduce((sum, payment) => {
             return sum + parseFloat(payment.amount_paid.toString());
-        }, 0);
+          }, 0);
+          totalRevenue += patientRevenue;
+        }
+      });
 
-        return {
-            doctor: {
-                id: doctor.doctor_id,
-                name: doctor.name
-            },
-            sessions: sessions.length,
-            patients: uniquePatientIds,
-            payments: payments.length,
-            totalRevenue: totalRevenue,
-            verification: 'OPTION 1 - All payments of patients treated by doctor',
-            debug: {
-                sessions_sample: sessions.slice(0, 3),
-                payments_sample: payments.slice(0, 3)
-            }
-        };
-    } catch (error) {
-        console.error('Verification error:', error);
-        return { error: error.message };
+      console.log(`💰 Doctor ${doctor.doctor_id} revenue: ${totalRevenue}`);
+
+      return {
+        doctorId: doctor.doctor_id,
+        doctorName: doctor.name,
+        specialization: doctor.specialization,
+        patientCount: totalPatients,
+        sessionCount: totalSessions,
+        revenue: Math.round(totalRevenue * 100) / 100 // Round to 2 decimal places
+      };
+    });
+
+    console.log('📈 Final doctor-wise stats:', stats);
+    return stats;
+
+  } catch (error) {
+    console.error('💥 Error in getDoctorWiseStats:', error);
+    throw new BadRequestException('Failed to generate doctor-wise statistics');
+  }
+}
+
+  // ✅ Add this verification function
+  async verifyDoctorStats(doctorId: number) {
+  try {
+    console.log(`🔍 Verifying stats for doctor ${doctorId}`);
+
+    // Get doctor with relations
+    const doctor = await this.doctorsRepository.findOne({
+      where: { doctor_id: doctorId },
+      relations: ['sessions', 'sessions.patient', 'sessions.patient.payments']
+    });
+
+    if (!doctor) {
+      throw new Error('Doctor not found');
     }
+
+    console.log(`📅 Sessions found:`, doctor.sessions.length);
+
+    // Get unique patients
+    const uniquePatients = new Map();
+    doctor.sessions.forEach(session => {
+      if (session.patient) {
+        uniquePatients.set(session.patient.patient_id, session.patient);
+      }
+    });
+
+    console.log(`👥 Unique patients:`, uniquePatients.size);
+
+    // Calculate total revenue
+    let totalRevenue = 0;
+    uniquePatients.forEach(patient => {
+      if (patient.payments) {
+        const patientRevenue = patient.payments.reduce((sum, payment) => {
+          return sum + parseFloat(payment.amount_paid.toString());
+        }, 0);
+        totalRevenue += patientRevenue;
+        console.log(`💰 Patient ${patient.patient_id} revenue: ${patientRevenue}`);
+      }
+    });
+
+    return {
+      doctor: {
+        id: doctor.doctor_id,
+        name: doctor.name,
+        specialization: doctor.specialization
+      },
+      sessions: doctor.sessions.length,
+      patients: Array.from(uniquePatients.keys()),
+      totalRevenue: totalRevenue,
+      debug: {
+        sessions_sample: doctor.sessions.slice(0, 3).map(s => ({
+          session_id: s.session_id,
+          patient_id: s.patient?.patient_id,
+          session_date: s.session_date
+        })),
+        patients_sample: Array.from(uniquePatients.values()).slice(0, 3).map(p => ({
+          patient_id: p.patient_id,
+          name: p.name,
+          payment_count: p.payments?.length || 0
+        }))
+      }
+    };
+  } catch (error) {
+    console.error('Verification error:', error);
+    return { error: error.message };
+  }
 }
 }
