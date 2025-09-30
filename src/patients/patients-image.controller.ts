@@ -25,47 +25,60 @@ export class PatientsImageController {
     private readonly patientsService: PatientsService,
   ) { }
 
-  @Post(':id/upload-reports')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  @UseInterceptors(FilesInterceptor('reports', 10)) // ← MULTIPLE FILES (max 10)
-  async uploadPatientReports(
-    @Param('id', ParseIntPipe) patientId: number,
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body('descriptions') descriptions?: string[], // Optional descriptions for each file
-  ) {
-    try {
-      if (!files || files.length === 0) {
-        throw new BadRequestException('No report files uploaded');
-      }
-
-      // Convert descriptions string to array if it's a string
-      let descArray: string[] = [];
-      if (descriptions) {
-        descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
-      }
-
-      const updatedPatient = await this.patientsService.uploadPatientReports(
-        patientId,
-        files,
-        descArray
-      );
-
-      return {
-        success: true,
-        message: `${files.length} report(s) uploaded successfully`,
-        data: {
-          patient: {
-            id: updatedPatient.patient_id,
-            name: updatedPatient.name,
-            total_reports: updatedPatient.reports ? updatedPatient.reports.length : 0,
-            reports: updatedPatient.reports,
-          },
-        },
-      };
-    } catch (error) {
-      throw new BadRequestException(error.message);
+ @Post(':id/upload-reports')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+@UseInterceptors(FilesInterceptor('reports', 10, {
+  storage: undefined,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // ✅ 10MB for PDF support
+  },
+  fileFilter: (req, file, cb) => {
+    // ✅ ADD PDF support
+    if (file.mimetype.match(/\/(jpg|jpeg|png|webp|pdf)$/)) {
+      cb(null, true);
+    } else {
+      cb(new BadRequestException('Unsupported file type. Only JPG, JPEG, PNG, WEBP, PDF are allowed.'), false);
     }
+  },
+}))
+async uploadPatientReports(
+  @Param('id', ParseIntPipe) patientId: number,
+  @UploadedFiles() files: Express.Multer.File[],
+  @Body('descriptions') descriptions?: string[],
+) {
+  try {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No report files uploaded');
+    }
+
+    // Convert descriptions string to array if it's a string
+    let descArray: string[] = [];
+    if (descriptions) {
+      descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
+    }
+
+    const updatedPatient = await this.patientsService.uploadPatientReports(
+      patientId,
+      files,
+      descArray
+    );
+
+    return {
+      success: true,
+      message: `${files.length} report(s) uploaded successfully`,
+      data: {
+        patient: {
+          id: updatedPatient.patient_id,
+          name: updatedPatient.name,
+          total_reports: updatedPatient.reports ? updatedPatient.reports.length : 0,
+          reports: updatedPatient.reports,
+        },
+      },
+    };
+  } catch (error) {
+    throw new BadRequestException(error.message);
   }
+}
 
 
   @Delete(':id/reports/:reportId')

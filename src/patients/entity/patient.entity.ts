@@ -119,6 +119,7 @@ reports: Array<{
   description?: string;
   file_size?: number; // in bytes
   mime_type?: string; // e.g., 'image/png', 'application/pdf'
+  file_type: string;
 }>;
 
 

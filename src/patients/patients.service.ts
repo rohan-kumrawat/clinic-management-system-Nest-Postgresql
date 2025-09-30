@@ -231,78 +231,81 @@ export class PatientsService {
   }
 
 
-  async uploadPatientReports(
-    patientId: number,
-    files: Express.Multer.File[],
-    descriptions?: string[]
-  ): Promise<Patient> {
-    const patient = await this.patientsRepository.findOne({
-      where: { patient_id: patientId }
-    });
-
-    if (!patient) {
-      throw new NotFoundException(`Patient with ID ${patientId} not found`);
-    }
-
-    // Upload all images to Cloudinary
-    const uploadResults = await this.cloudinaryService.uploadMultipleImages(files);
-
-    // Create report objects
-    const newReports = uploadResults.map((result, index) => ({
-      id: uuidv4(),  // Generate a unique ID for each report
-      url: result.url,
-      public_id: result.public_id,
-      filename: result.filename,
-      uploaded_at: new Date(),
-      description: descriptions && descriptions[index] ? descriptions[index] : `Report ${index + 1}`,
-      file_size: files[index].size,
-      mime_type: files[index].mimetype
-    }));
-
-    // Initialize reports array if null
-    if (!patient.reports) {
-      patient.reports = [];
-    }
-
-    // Add new reports to existing ones
-    patient.reports = [...patient.reports, ...newReports];
-
-    return await this.patientsRepository.save(patient);
+ // UPDATE uploadPatientReports method
+async uploadPatientReports(
+  patientId: number, 
+  files: Express.Multer.File[],
+  descriptions?: string[]
+): Promise<Patient> {
+  const patient = await this.patientsRepository.findOne({ 
+    where: { patient_id: patientId } 
+  });
+  
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${patientId} not found`);
   }
 
-  // Remove a specific report
-  async removePatientReport(patientId: number, reportId: string): Promise<Patient> {
-    const patient = await this.patientsRepository.findOne({
-      where: { patient_id: patientId }
-    });
+  // Upload all files to Cloudinary
+  const uploadResults = await this.cloudinaryService.uploadMultipleFiles(files);
 
-    if (!patient) {
-      throw new NotFoundException(`Patient with ID ${patientId} not found`);
-    }
+  // Create report objects with file type
+  const newReports = uploadResults.map((result, index) => ({
+    id: uuidv4(),
+    url: result.url,
+    public_id: result.public_id,
+    filename: result.filename,
+    uploaded_at: new Date(),
+    description: descriptions && descriptions[index] ? descriptions[index] : `Report ${index + 1}`,
+    file_size: files[index].size,
+    mime_type: files[index].mimetype,
+    file_type: result.file_type // ✅ ADD file type
+  }));
 
-    if (!patient.reports) {
-      throw new NotFoundException(`Report not found for this patient`);
-    }
-
-    // Find report by UUID instead of index
-    const reportIndex = patient.reports.findIndex(report => report.id === reportId);
-
-    if (reportIndex === -1) {
-      throw new NotFoundException(`Report with ID ${reportId} not found`);
-    }
-
-    const reportToRemove = patient.reports[reportIndex];
-
-    // Delete from Cloudinary
-    await this.cloudinaryService.deleteImage(reportToRemove.public_id);
-
-    // Remove from array
-    patient.reports.splice(reportIndex, 1);
-
-    return await this.patientsRepository.save(patient);
+  if (!patient.reports) {
+    patient.reports = [];
   }
 
-  async clearAllPatientReports(patientId: number): Promise<Patient> {
+  patient.reports = [...patient.reports, ...newReports];
+
+  return await this.patientsRepository.save(patient);
+}
+
+// UPDATE removePatientReport method
+async removePatientReport(patientId: number, reportId: string): Promise<Patient> {
+  const patient = await this.patientsRepository.findOne({ 
+    where: { patient_id: patientId } 
+  });
+  
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+  }
+
+  if (!patient.reports) {
+    throw new NotFoundException('No reports found for this patient');
+  }
+
+  const reportIndex = patient.reports.findIndex(report => report.id === reportId);
+  
+  if (reportIndex === -1) {
+    throw new NotFoundException(`Report with ID ${reportId} not found`);
+  }
+
+  const reportToRemove = patient.reports[reportIndex];
+
+  // Use file_type to determine resource type
+  const resourceType = reportToRemove.file_type === 'pdf' ? 'raw' : 'image';
+  
+  // Delete from Cloudinary with correct resource type
+  await this.cloudinaryService.deleteFile(reportToRemove.public_id, resourceType);
+
+  // Remove from array
+  patient.reports.splice(reportIndex, 1);
+
+  return await this.patientsRepository.save(patient);
+}
+
+// UPDATE clearAllPatientReports method
+async clearAllPatientReports(patientId: number): Promise<Patient> {
   const patient = await this.patientsRepository.findOne({ 
     where: { patient_id: patientId } 
   });
@@ -312,10 +315,12 @@ export class PatientsService {
   }
 
   if (patient.reports && patient.reports.length > 0) {
-    // Delete all images from Cloudinary
-    const deletePromises = patient.reports.map(report => 
-      this.cloudinaryService.deleteImage(report.public_id)
-    );
+    // Delete all files from Cloudinary with correct resource types
+    const deletePromises = patient.reports.map(report => {
+      const resourceType = report.file_type === 'pdf' ? 'raw' : 'image';
+      return this.cloudinaryService.deleteFile(report.public_id, resourceType);
+    });
+    
     await Promise.all(deletePromises);
 
     // Clear reports array
@@ -366,7 +371,7 @@ export class PatientsService {
       if (patient && patient.reports && patient.reports.length > 0) {
         // Delete all report images from Cloudinary
         const deletePromises = patient.reports.map(report =>
-          this.cloudinaryService.deleteImage(report.public_id)
+          this.cloudinaryService.deleteFile(report.public_id)
         );
         await Promise.all(deletePromises);
       }
