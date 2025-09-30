@@ -12,7 +12,7 @@ export class Patient {
   @PrimaryGeneratedColumn()
   patient_id: number;
 
-  @Column({ unique: true })
+  @Column({ unique: false })
   reg_no: string;
 
   @Column()
