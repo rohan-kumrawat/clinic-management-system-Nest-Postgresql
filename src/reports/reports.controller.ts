@@ -200,4 +200,26 @@ async verifyDoctorStats(@Param('doctorId') doctorId: number) {
 async debugDoctorStats(@Param('doctorId', ParseIntPipe) doctorId: number) {
   return this.reportsService.verifyDoctorStats(doctorId);
 }
+
+@Get('debug/sessions')
+@Roles(UserRole.OWNER)
+async debugSessions() {
+  try {
+    const sessions = await this.reportsService.getSessionsDebug();
+    return { success: true, data: sessions };
+  } catch (error) {
+    throw new BadRequestException(error.message);
+  }
+}
+
+@Get('debug/payments')
+@Roles(UserRole.OWNER)  
+async debugPayments() {
+  try {
+    const payments = await this.reportsService.getPaymentsDebug();
+    return { success: true, data: payments };
+  } catch (error) {
+    throw new BadRequestException(error.message);
+  }
+}
 }

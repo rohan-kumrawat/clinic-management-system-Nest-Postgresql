@@ -314,34 +314,73 @@ export class ReportsService {
 
   async getDoctorWiseStats() {
   try {
-    console.log('🔍 Starting doctor-wise stats calculation with raw SQL...');
+    console.log('🔍 Starting doctor-wise stats with direct queries...');
 
-    const doctorStats = await this.doctorsRepository.query(`
-      SELECT 
-        d.doctor_id as "doctorId",
-        d.name as "doctorName", 
-        d.specialization as "specialization",
-        COUNT(DISTINCT s.patient_id) as "patientCount",
-        COUNT(s.session_id) as "sessionCount",
-        COALESCE(SUM(p.amount_paid), 0) as "revenue"
-      FROM doctors d
-      LEFT JOIN sessions s ON d.doctor_id = s.doctor_id
-      LEFT JOIN patients pt ON s.patient_id = pt.patient_id  
-      LEFT JOIN payments p ON pt.patient_id = p.patient_id
-      GROUP BY d.doctor_id, d.name, d.specialization
-      ORDER BY revenue DESC
-    `);
+    // Get all doctors
+    const doctors = await this.doctorsRepository.find();
+    console.log(`📊 Found ${doctors.length} doctors`);
 
-    console.log('📈 Raw SQL doctor stats:', doctorStats);
+    const statsPromises = doctors.map(async (doctor) => {
+      try {
+        console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
 
-    return doctorStats.map(stat => ({
-      doctorId: stat.doctorId,
-      doctorName: stat.doctorName,
-      specialization: stat.specialization,
-      patientCount: parseInt(stat.patientCount) || 0,
-      sessionCount: parseInt(stat.sessionCount) || 0,
-      revenue: parseFloat(stat.revenue) || 0
-    }));
+        // ✅ DIRECT QUERY 1: Get sessions count for this doctor
+        const sessionCountResult = await this.sessionsRepository
+          .createQueryBuilder('session')
+          .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
+          .getCount();
+
+        console.log(`📅 Doctor ${doctor.doctor_id} has ${sessionCountResult} sessions`);
+
+        // ✅ DIRECT QUERY 2: Get unique patients from sessions
+        const uniquePatientsResult = await this.sessionsRepository
+          .createQueryBuilder('session')
+          .select('DISTINCT session.patient_id', 'patient_id')
+          .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
+          .getRawMany();
+
+        const uniquePatientIds = uniquePatientsResult.map(p => p.patient_id);
+        console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatientIds.length} patients:`, uniquePatientIds);
+
+        // ✅ DIRECT QUERY 3: Get revenue from payments of these patients
+        let totalRevenue = 0;
+        
+        if (uniquePatientIds.length > 0) {
+          const revenueResult = await this.paymentsRepository
+            .createQueryBuilder('payment')
+            .select('SUM(payment.amount_paid)', 'total')
+            .where('payment.patient_id IN (:...patientIds)', { patientIds: uniquePatientIds })
+            .getRawOne();
+
+          totalRevenue = parseFloat(revenueResult?.total || '0');
+        }
+
+        console.log(`💰 Doctor ${doctor.doctor_id} revenue: ${totalRevenue}`);
+
+        return {
+          doctorId: doctor.doctor_id,
+          doctorName: doctor.name,
+          specialization: doctor.specialization,
+          patientCount: uniquePatientIds.length,
+          sessionCount: sessionCountResult,
+          revenue: totalRevenue
+        };
+      } catch (error) {
+        console.error(`❌ Error for doctor ${doctor.doctor_id}:`, error);
+        return {
+          doctorId: doctor.doctor_id,
+          doctorName: doctor.name,
+          specialization: doctor.specialization,
+          patientCount: 0,
+          sessionCount: 0,
+          revenue: 0
+        };
+      }
+    });
+
+    const stats = await Promise.all(statsPromises);
+    console.log('📈 Final doctor-wise stats:', stats);
+    return stats;
 
   } catch (error) {
     console.error('💥 Error in getDoctorWiseStats:', error);
@@ -412,6 +451,73 @@ export class ReportsService {
     };
   } catch (error) {
     console.error('Verification error:', error);
+    return { error: error.message };
+  }
+}
+
+async getSessionsDebug() {
+  try {
+    const sessions = await this.sessionsRepository
+      .createQueryBuilder('session')
+      .leftJoinAndSelect('session.doctor', 'doctor')
+      .leftJoinAndSelect('session.patient', 'patient')
+      .select([
+        'session.session_id',
+        'session.doctor_id',
+        'session.patient_id', 
+        'session.session_date',
+        'doctor.doctor_id',
+        'doctor.name',
+        'patient.patient_id',
+        'patient.name'
+      ])
+      .getMany();
+
+    return {
+      totalSessions: sessions.length,
+      sessions: sessions.map(s => ({
+        session_id: s.session_id,
+        doctor_id: s.doctor_id,
+        doctor_name: s.doctor?.name,
+        patient_id: s.patient_id, 
+        patient_name: s.patient?.name,
+        session_date: s.session_date
+      }))
+    };
+  } catch (error) {
+    console.error('Debug sessions error:', error);
+    return { error: error.message };
+  }
+}
+
+async getPaymentsDebug() {
+  try {
+    const payments = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.patient', 'patient')
+      .select([
+        'payment.payment_id',
+        'payment.patient_id',
+        'payment.amount_paid',
+        'payment.payment_date',
+        'patient.patient_id',
+        'patient.name'
+      ])
+      .getMany();
+
+    return {
+      totalPayments: payments.length,
+      totalRevenue: payments.reduce((sum, p) => sum + parseFloat(p.amount_paid.toString()), 0),
+      payments: payments.map(p => ({
+        payment_id: p.payment_id,
+        patient_id: p.patient_id,
+        patient_name: p.patient?.name,
+        amount_paid: p.amount_paid,
+        payment_date: p.payment_date
+      }))
+    };
+  } catch (error) {
+    console.error('Debug payments error:', error);
     return { error: error.message };
   }
 }
