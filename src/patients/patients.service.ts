@@ -6,25 +6,27 @@ import { UserRole } from '../auth/entity/user.entity';
 import { PatientStatus, PaymentStatus, VisitType, Gender } from 'src/common/enums';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class PatientsService {
   constructor(
     @InjectRepository(Patient)
     private patientsRepository: Repository<Patient>,
+    private readonly cloudinaryService: CloudinaryService,
   ) { }
 
   async create(patientData: CreatePatientDto): Promise<Patient> {
     try {
       console.log('Received patientData:', patientData);
-      
+
       // Handle the assigned_doctor object from frontend
       if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
         const doctorData = patientData.assigned_doctor as any;
         const doctorId = doctorData.id || doctorData.doctor_id;
-        
+
         console.log('Extracted doctorId:', doctorId);
-        
+
         if (doctorId) {
           patientData.assigned_doctor = { doctor_id: doctorId } as any;
         } else {
@@ -38,12 +40,12 @@ export class PatientsService {
       }
 
       console.log('Saving patientData:', patientData);
-      
+
       const patient = this.patientsRepository.create(patientData);
       const savedPatient = await this.patientsRepository.save(patient);
-      
+
       console.log('Saved patient:', savedPatient);
-      
+
       return savedPatient;
     } catch (error) {
       console.error('Error creating patient:', error);
@@ -52,183 +54,235 @@ export class PatientsService {
   }
 
   async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
-  try {
-    await this.findOne(id, userRole);
+    try {
+      await this.findOne(id, userRole);
 
-    // Handle the assigned_doctor object in update as well
-    if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
-      const doctorData = updateData.assigned_doctor as any;
-      const doctorId = doctorData.id || doctorData.doctor_id;
-      
-      if (doctorId) {
-        updateData.assigned_doctor = { doctor_id: doctorId } as any;
-      } else {
-        updateData.assigned_doctor = null;
+      // Handle the assigned_doctor object in update as well
+      if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
+        const doctorData = updateData.assigned_doctor as any;
+        const doctorId = doctorData.id || doctorData.doctor_id;
+
+        if (doctorId) {
+          updateData.assigned_doctor = { doctor_id: doctorId } as any;
+        } else {
+          updateData.assigned_doctor = null;
+        }
       }
-    }
 
-    // Recalculate total_amount if original_amount or discount_amount is updated
-    if (updateData.original_amount !== undefined || updateData.discount_amount !== undefined) {
-      const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
+      // Recalculate total_amount if original_amount or discount_amount is updated
+      if (updateData.original_amount !== undefined || updateData.discount_amount !== undefined) {
+        const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+        if (!patient) {
+          throw new NotFoundException(`Patient with ID ${id} not found`);
+        }
+
+        const newOriginalAmount = updateData.original_amount !== undefined ?
+          updateData.original_amount : patient.original_amount;
+        const newDiscountAmount = updateData.discount_amount !== undefined ?
+          updateData.discount_amount : patient.discount_amount;
+
+        updateData.total_amount = newOriginalAmount - newDiscountAmount;
       }
-      
-      const newOriginalAmount = updateData.original_amount !== undefined ? 
-        updateData.original_amount : patient.original_amount;
-      const newDiscountAmount = updateData.discount_amount !== undefined ? 
-        updateData.discount_amount : patient.discount_amount;
-      
-      updateData.total_amount = newOriginalAmount - newDiscountAmount;
-    }
 
-    // Recalculate per_session_amount if total_amount or total_sessions is updated
-    if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) && 
+      // Recalculate per_session_amount if total_amount or total_sessions is updated
+      if ((updateData.total_sessions !== undefined || updateData.total_amount !== undefined) &&
         !updateData.per_session_amount) {
-      const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
-      if (!patient) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
+        const patient = await this.patientsRepository.findOne({ where: { patient_id: id } });
+        if (!patient) {
+          throw new NotFoundException(`Patient with ID ${id} not found`);
+        }
+        const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
+        const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
+
+        if (newTotalSessions > 0) {
+          updateData.per_session_amount = newTotalAmount / newTotalSessions;
+        }
       }
-      const newTotalSessions = updateData.total_sessions !== undefined ? updateData.total_sessions : patient.total_sessions;
-      const newTotalAmount = updateData.total_amount !== undefined ? updateData.total_amount : patient.total_amount;
 
-      if (newTotalSessions > 0) {
-        updateData.per_session_amount = newTotalAmount / newTotalSessions;
+      // Update the patient with the new data
+      await this.patientsRepository.update(id, updateData);
+
+      // If financial fields were updated, recalculate released_sessions and carry_amount
+      const financialFieldsUpdated =
+        updateData.original_amount !== undefined ||
+        updateData.discount_amount !== undefined ||
+        updateData.total_amount !== undefined ||
+        updateData.total_sessions !== undefined;
+
+      if (financialFieldsUpdated) {
+        await this.recalculateReleasedSessionsAndCarryAmount(id);
       }
+
+      return this.findOne(id, userRole);
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      throw new Error('Failed to update patient');
     }
-
-    // Update the patient with the new data
-    await this.patientsRepository.update(id, updateData);
-
-    // If financial fields were updated, recalculate released_sessions and carry_amount
-    const financialFieldsUpdated = 
-      updateData.original_amount !== undefined || 
-      updateData.discount_amount !== undefined || 
-      updateData.total_amount !== undefined || 
-      updateData.total_sessions !== undefined;
-
-    if (financialFieldsUpdated) {
-      await this.recalculateReleasedSessionsAndCarryAmount(id);
-    }
-
-    return this.findOne(id, userRole);
-  } catch (error) {
-    console.error('Error updating patient:', error);
-    throw new Error('Failed to update patient');
   }
-}
 
 
 
   private async recalculateReleasedSessionsAndCarryAmount(patientId: number): Promise<void> {
-  const patient = await this.patientsRepository.findOne({
-    where: { patient_id: patientId },
-    relations: ['payments']
-  });
-  
-  if (!patient) return;
-  
-  // Get the current patient data with updated financial fields
-  const currentPatient = await this.patientsRepository.findOne({
-    where: { patient_id: patientId }
-  });
-  
-  if (!currentPatient) return;
-  
-  // Total paid amount calculate karein
-  const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
-  
-  // Use the updated per_session_amount if available
-  const perSessionAmount = currentPatient.per_session_amount || 
-                          (currentPatient.total_amount / currentPatient.total_sessions);
-  
-  // Calculate released sessions and carry amount
-  const sessionsToRelease = Math.floor(totalPaid / perSessionAmount);
-  const newCarryAmount = totalPaid % perSessionAmount;
-  
-  // Patient update karein
-  await this.patientsRepository.update(patientId, {
-    released_sessions: sessionsToRelease,
-    carry_amount: newCarryAmount
-  });
-}
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId },
+      relations: ['payments']
+    });
+
+    if (!patient) return;
+
+    // Get the current patient data with updated financial fields
+    const currentPatient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
+
+    if (!currentPatient) return;
+
+    // Total paid amount calculate karein
+    const totalPaid = patient.payments.reduce((sum, payment) => sum + payment.amount_paid, 0);
+
+    // Use the updated per_session_amount if available
+    const perSessionAmount = currentPatient.per_session_amount ||
+      (currentPatient.total_amount / currentPatient.total_sessions);
+
+    // Calculate released sessions and carry amount
+    const sessionsToRelease = Math.floor(totalPaid / perSessionAmount);
+    const newCarryAmount = totalPaid % perSessionAmount;
+
+    // Patient update karein
+    await this.patientsRepository.update(patientId, {
+      released_sessions: sessionsToRelease,
+      carry_amount: newCarryAmount
+    });
+  }
 
   async findOne(id: number, userRole: UserRole | null = null): Promise<any> {
-  try {
-    let queryBuilder = this.patientsRepository
-      .createQueryBuilder('patient')
-      .leftJoin('patient.assigned_doctor', 'doctor')
-      .addSelect(['doctor.doctor_id', 'doctor.name'])
-      .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
-      .where('patient.patient_id = :id', { id });
+    try {
+      let queryBuilder = this.patientsRepository
+        .createQueryBuilder('patient')
+        .leftJoin('patient.assigned_doctor', 'doctor')
+        .addSelect(['doctor.doctor_id', 'doctor.name'])
+        .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
+        .where('patient.patient_id = :id', { id });
 
-    // Apply role-based filter (Receptionist can only see ACTIVE patients)
-    if (userRole === UserRole.RECEPTIONIST) {
-      queryBuilder = queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
-    }
+      // Apply role-based filter (Receptionist can only see ACTIVE patients)
+      if (userRole === UserRole.RECEPTIONIST) {
+        queryBuilder = queryBuilder.andWhere('patient.status = :status', { status: PatientStatus.ACTIVE });
+      }
 
-    const patient = await queryBuilder.getOne();
+      const patient = await queryBuilder.getOne();
 
-    if (!patient) {
-      throw new NotFoundException(`Patient with ID ${id} not found`);
-    }
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
 
-    // Get the accurate attended sessions count
-    const sessionCountResult = await this.patientsRepository.manager.query(
-      `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
-      [id]
-    );
-    
-    const attendedSessionsCount = parseInt(sessionCountResult[0].count, 10);
-    
-    // Get paid amount
-    const paidResult = await this.patientsRepository.manager.query(
-      `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
+      // Get the accurate attended sessions count
+      const sessionCountResult = await this.patientsRepository.manager.query(
+        `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
+        [id]
+      );
+
+      const attendedSessionsCount = parseInt(sessionCountResult[0].count, 10);
+
+      // Get paid amount
+      const paidResult = await this.patientsRepository.manager.query(
+        `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
        FROM payments 
        WHERE patient_id = $1`,
-      [id]
-    );
-    
-    const paidAmount = parseFloat(paidResult[0].total_paid);
-    
-    // Calculate payment status
-    const remaining = patient.total_amount - paidAmount;
-    let paymentStatus = PaymentStatus.UNPAID;
-    
-    if (paidAmount === 0) {
-      paymentStatus = PaymentStatus.UNPAID;
-    } else if (remaining > 0) {
-      paymentStatus = PaymentStatus.PARTIALLY_PAID;
-    } else {
-      paymentStatus = PaymentStatus.FULLY_PAID;
-    }
-    
-    // Calculate remaining release sessions
-    const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
-    
-    // Format assigned_doctor
-    const formattedDoctor = patient.assigned_doctor ? {
-      doctor_id: patient.assigned_doctor.doctor_id,
-      name: patient.assigned_doctor.name
-    } : null;
+        [id]
+      );
 
-    // Return the complete patient object with all stats
-    return {
-      ...patient,
-      remaining_release_sessions: remainingReleaseSessions,
-      attended_sessions_count: attendedSessionsCount,
-      paid_amount: paidAmount,
-      payment_status: paymentStatus,
-      assigned_doctor: formattedDoctor,
-    };
-  } catch (error) {
-    console.error('Error fetching patient:', error);
-    throw new Error('Failed to fetch patient');
+      const paidAmount = parseFloat(paidResult[0].total_paid);
+
+      // Calculate payment status
+      const remaining = patient.total_amount - paidAmount;
+      let paymentStatus = PaymentStatus.UNPAID;
+
+      if (paidAmount === 0) {
+        paymentStatus = PaymentStatus.UNPAID;
+      } else if (remaining > 0) {
+        paymentStatus = PaymentStatus.PARTIALLY_PAID;
+      } else {
+        paymentStatus = PaymentStatus.FULLY_PAID;
+      }
+
+      // Calculate remaining release sessions
+      const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
+
+      // Format assigned_doctor
+      const formattedDoctor = patient.assigned_doctor ? {
+        doctor_id: patient.assigned_doctor.doctor_id,
+        name: patient.assigned_doctor.name
+      } : null;
+
+      // Return the complete patient object with all stats
+      return {
+        ...patient,
+        remaining_release_sessions: remainingReleaseSessions,
+        attended_sessions_count: attendedSessionsCount,
+        paid_amount: paidAmount,
+        payment_status: paymentStatus,
+        assigned_doctor: formattedDoctor,
+      };
+    } catch (error) {
+      console.error('Error fetching patient:', error);
+      throw new Error('Failed to fetch patient');
+    }
   }
-}
+
+  async updatePatientImage(
+    patientId: number,
+    imageUrl: string,
+    imagePublicId: string
+  ): Promise<Patient> {
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
+
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    }
+
+    // Delete old image if exists
+    if (patient.image_public_id) {
+      await this.cloudinaryService.deleteImage(patient.image_public_id);
+    }
+
+    patient.image_url = imageUrl;
+    patient.image_public_id = imagePublicId;
+
+    return await this.patientsRepository.save(patient);
+  }
+
+  async removePatientImage(patientId: number): Promise<Patient> {
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
+
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    }
+
+    if (patient.image_public_id) {
+      await this.cloudinaryService.deleteImage(patient.image_public_id);
+    }
+
+    patient.image_url = undefined as any;
+    patient.image_public_id = undefined as any;
+
+    return await this.patientsRepository.save(patient);
+  }
+
 
   async remove(id: number): Promise<{ message: string }> {
     try {
+      const patient = await this.patientsRepository.findOne({
+        where: { patient_id: id }
+      });
+
+      if (patient && patient.image_public_id) {
+        await this.cloudinaryService.deleteImage(patient.image_public_id);
+      }
+
       const result = await this.patientsRepository.delete(id);
 
       if (result.affected === 0) {
@@ -331,7 +385,7 @@ export class PatientsService {
       // Apply payment status filter if specified
       let filteredPatients = patientsWithStats;
       if (paymentStatus) {
-        filteredPatients = patientsWithStats.filter(patient => 
+        filteredPatients = patientsWithStats.filter(patient =>
           patient.payment_status === paymentStatus
         );
       }
@@ -362,7 +416,7 @@ export class PatientsService {
       const queryBuilder = this.patientsRepository
         .createQueryBuilder('patient')
         .leftJoin('patient.assigned_doctor', 'doctor')
-        .addSelect(['doctor.doctor_id', 'doctor.name']) 
+        .addSelect(['doctor.doctor_id', 'doctor.name'])
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
         .where('patient.status = :status', { status: PatientStatus.ACTIVE });
 
@@ -399,7 +453,7 @@ export class PatientsService {
       // Apply payment status filter if specified
       let filteredPatients = patientsWithStats;
       if (paymentStatus) {
-        filteredPatients = patientsWithStats.filter(patient => 
+        filteredPatients = patientsWithStats.filter(patient =>
           patient.payment_status === paymentStatus
         );
       }
@@ -417,68 +471,68 @@ export class PatientsService {
   }
 
   private async addSessionAndPaymentStats(patients: Patient[]): Promise<any[]> {
-  try {
-    if (patients.length === 0) return patients;
+    try {
+      if (patients.length === 0) return patients;
 
-    const patientIds = patients.map(p => p.patient_id);
+      const patientIds = patients.map(p => p.patient_id);
 
-    // Get paid amount for each patient using a more reliable query
-    const paidAmounts = await this.patientsRepository.manager.query(`
+      // Get paid amount for each patient using a more reliable query
+      const paidAmounts = await this.patientsRepository.manager.query(`
       SELECT patient_id, COALESCE(SUM(amount_paid), 0) as paid_amount 
       FROM payments 
       WHERE patient_id IN (${patientIds.join(',')})
       GROUP BY patient_id
     `);
 
-    // Map the stats to patients and format assigned_doctor
-    return patients.map(patient => {
-      const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
+      // Map the stats to patients and format assigned_doctor
+      return patients.map(patient => {
+        const paidAmount = paidAmounts.find((pa: any) => pa.patient_id === patient.patient_id);
 
-      // Format assigned_doctor to only include id and name
-      const formattedDoctor = patient.assigned_doctor ? {
-        doctor_id: patient.assigned_doctor.doctor_id,
-        name: patient.assigned_doctor.name
-      } : null;
+        // Format assigned_doctor to only include id and name
+        const formattedDoctor = patient.assigned_doctor ? {
+          doctor_id: patient.assigned_doctor.doctor_id,
+          name: patient.assigned_doctor.name
+        } : null;
 
-      const attendedSessionsCount = patient.attended_sessions_count || 0;
-      
-      // Calculate remaining release sessions
-      const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
+        const attendedSessionsCount = patient.attended_sessions_count || 0;
 
-      // Calculate payment status
-      const totalPaid = paidAmount ? parseFloat(paidAmount.paid_amount) : 0;
-      const remaining = patient.total_amount - totalPaid;
-      let paymentStatus = PaymentStatus.UNPAID;
-      
-      if (totalPaid === 0) {
-        paymentStatus = PaymentStatus.UNPAID;
-      } else if (remaining > 0) {
-        paymentStatus = PaymentStatus.PARTIALLY_PAID;
-      } else {
-        paymentStatus = PaymentStatus.FULLY_PAID;
-      }
+        // Calculate remaining release sessions
+        const remainingReleaseSessions = Math.max(patient.released_sessions - attendedSessionsCount, 0);
 
-      // Return a plain object with all the required fields
-      return {
+        // Calculate payment status
+        const totalPaid = paidAmount ? parseFloat(paidAmount.paid_amount) : 0;
+        const remaining = patient.total_amount - totalPaid;
+        let paymentStatus = PaymentStatus.UNPAID;
+
+        if (totalPaid === 0) {
+          paymentStatus = PaymentStatus.UNPAID;
+        } else if (remaining > 0) {
+          paymentStatus = PaymentStatus.PARTIALLY_PAID;
+        } else {
+          paymentStatus = PaymentStatus.FULLY_PAID;
+        }
+
+        // Return a plain object with all the required fields
+        return {
+          ...patient,
+          assigned_doctor: formattedDoctor,
+          paid_amount: totalPaid,
+          payment_status: paymentStatus,
+          remaining_release_sessions: remainingReleaseSessions
+        };
+      });
+    } catch (error) {
+      console.error('Error in addSessionAndPaymentStats:', error);
+      // If there's an error, return patients without stats
+      return patients.map(patient => ({
         ...patient,
-        assigned_doctor: formattedDoctor,
-        paid_amount: totalPaid,
-        payment_status: paymentStatus,
-        remaining_release_sessions: remainingReleaseSessions
-      };
-    });
-  } catch (error) {
-    console.error('Error in addSessionAndPaymentStats:', error);
-    // If there's an error, return patients without stats
-    return patients.map(patient => ({
-      ...patient,
-      attended_sessions_count: 0,
-      paid_amount: 0,
-      payment_status: PaymentStatus.UNPAID,
-      remaining_release_sessions: 0
-    }));
+        attended_sessions_count: 0,
+        paid_amount: 0,
+        payment_status: PaymentStatus.UNPAID,
+        remaining_release_sessions: 0
+      }));
+    }
   }
-}
 
   async getStats(): Promise<{
     total: number;

@@ -11,9 +11,6 @@ export class Patient {
   @PrimaryGeneratedColumn()
   patient_id: number;
 
-  // @Column({ nullable: true })
-  // serial_no: number;
-
   @Column({ unique: true })
   reg_no: string;
 
@@ -108,7 +105,23 @@ export class Patient {
     enum: Gender
     })
     gender: Gender;
-    
+
+  @Column({ 
+  name: 'image_url', 
+  type: 'varchar', 
+  nullable: true,
+  length: 500 
+})
+image_url: string | null ;
+
+@Column({ 
+  name: 'image_public_id', 
+  type: 'varchar', 
+  nullable: true,
+  length: 100 
+})
+image_public_id: string | null ;  
+
   @CreateDateColumn()
   created_at: Date;
 
