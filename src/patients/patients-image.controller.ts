@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Delete,
   Param,
   UseInterceptors,
@@ -22,7 +23,7 @@ import { UseGuards } from '@nestjs/common';
 export class PatientsImageController {
   constructor(
     private readonly patientsService: PatientsService,
-  ) {}
+  ) { }
 
   @Post(':id/upload-reports')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -66,14 +67,15 @@ export class PatientsImageController {
     }
   }
 
-  @Delete(':id/reports/:reportIndex')
+
+  @Delete(':id/reports/:reportId')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async removePatientReport(
     @Param('id', ParseIntPipe) patientId: number,
-    @Param('reportIndex', ParseIntPipe) reportIndex: number,
+    @Param('reportId') reportId: string, // ← UUID string
   ) {
     try {
-      const updatedPatient = await this.patientsService.removePatientReport(patientId, reportIndex);
+      const updatedPatient = await this.patientsService.removePatientReport(patientId, reportId);
 
       return {
         success: true,
@@ -91,22 +93,18 @@ export class PatientsImageController {
     }
   }
 
-  @Delete(':id/clear-all-reports')
+  @Get(':id/reports/:reportId')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async clearAllPatientReports(@Param('id', ParseIntPipe) patientId: number) {
+  async getPatientReport(
+    @Param('id', ParseIntPipe) patientId: number,
+    @Param('reportId') reportId: string,
+  ) {
     try {
-      const updatedPatient = await this.patientsService.clearAllPatientReports(patientId);
+      const report = await this.patientsService.getPatientReport(patientId, reportId);
 
       return {
         success: true,
-        message: 'All reports cleared successfully',
-        data: {
-          patient: {
-            id: updatedPatient.patient_id,
-            name: updatedPatient.name,
-            total_reports: 0,
-          },
-        },
+        data: report,
       };
     } catch (error) {
       throw new BadRequestException(error.message);

@@ -5,6 +5,7 @@ import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { PatientStatus, VisitType, Gender } from '../../common/enums';
 import { DecimalTransformer } from 'src/common/decimal.transformer';
+import { v4 as uuidv4 } from 'uuid';
 
 @Entity('patients')
 export class Patient {
@@ -110,11 +111,14 @@ export class Patient {
 // For multiple images/reports:
 @Column({ type: 'jsonb', nullable: true })
 reports: Array<{
+  id: string;  // Unique identifier for each report
   url: string;
   public_id: string;
   filename: string;
   uploaded_at: Date;
   description?: string;
+  file_size?: number; // in bytes
+  mime_type?: string; // e.g., 'image/png', 'application/pdf'
 }>;
 
 

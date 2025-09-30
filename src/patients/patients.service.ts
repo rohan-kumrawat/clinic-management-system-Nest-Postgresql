@@ -7,6 +7,7 @@ import { PatientStatus, PaymentStatus, VisitType, Gender } from 'src/common/enum
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class PatientsService {
@@ -229,166 +230,128 @@ export class PatientsService {
     }
   }
 
-  // async updatePatientImage(
-  //   patientId: number,
-  //   imageUrl: string,
-  //   imagePublicId: string
-  // ): Promise<Patient> {
-  //   const patient = await this.patientsRepository.findOne({
-  //     where: { patient_id: patientId }
-  //   });
-
-  //   if (!patient) {
-  //     throw new NotFoundException(`Patient with ID ${patientId} not found`);
-  //   }
-
-  //   // Delete old image if exists
-  //   if (patient.image_public_id) {
-  //     await this.cloudinaryService.deleteImage(patient.image_public_id);
-  //   }
-
-  //   patient.image_url = imageUrl;
-  //   patient.image_public_id = imagePublicId;
-
-  //   return await this.patientsRepository.save(patient);
-  // }
-
-  // async removePatientImage(patientId: number): Promise<Patient> {
-  //   const patient = await this.patientsRepository.findOne({
-  //     where: { patient_id: patientId }
-  //   });
-
-  //   if (!patient) {
-  //     throw new NotFoundException(`Patient with ID ${patientId} not found`);
-  //   }
-
-  //   if (patient.image_public_id) {
-  //     await this.cloudinaryService.deleteImage(patient.image_public_id);
-  //   }
-
-  //   patient.image_url = undefined as any;
-  //   patient.image_public_id = undefined as any;
-
-  //   return await this.patientsRepository.save(patient);
-  // }
-
 
   async uploadPatientReports(
-  patientId: number, 
-  files: Express.Multer.File[],
-  descriptions?: string[]
-): Promise<Patient> {
-  const patient = await this.patientsRepository.findOne({ 
-    where: { patient_id: patientId } 
-  });
-  
-  if (!patient) {
-    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    patientId: number,
+    files: Express.Multer.File[],
+    descriptions?: string[]
+  ): Promise<Patient> {
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
+
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    }
+
+    // Upload all images to Cloudinary
+    const uploadResults = await this.cloudinaryService.uploadMultipleImages(files);
+
+    // Create report objects
+    const newReports = uploadResults.map((result, index) => ({
+      id: uuidv4(),  // Generate a unique ID for each report
+      url: result.url,
+      public_id: result.public_id,
+      filename: result.filename,
+      uploaded_at: new Date(),
+      description: descriptions && descriptions[index] ? descriptions[index] : `Report ${index + 1}`,
+      file_size: files[index].size,
+      mime_type: files[index].mimetype
+    }));
+
+    // Initialize reports array if null
+    if (!patient.reports) {
+      patient.reports = [];
+    }
+
+    // Add new reports to existing ones
+    patient.reports = [...patient.reports, ...newReports];
+
+    return await this.patientsRepository.save(patient);
   }
 
-  // Upload all images to Cloudinary
-  const uploadResults = await this.cloudinaryService.uploadMultipleImages(files);
+  // ADD method to remove a specific report
+  async removePatientReport(patientId: number, reportId: string): Promise<Patient> {
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
 
-  // Create report objects
-  const newReports = uploadResults.map((result, index) => ({
-    url: result.url,
-    public_id: result.public_id,
-    filename: result.filename,
-    uploaded_at: new Date(),
-    description: descriptions && descriptions[index] ? descriptions[index] : `Report ${index + 1}`
-  }));
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    }
 
-  // Initialize reports array if null
-  if (!patient.reports) {
-    patient.reports = [];
+    if (!patient.reports) {
+      throw new NotFoundException(`Report not found for this patient`);
+    }
+
+    // Find report by UUID instead of index
+    const reportIndex = patient.reports.findIndex(report => report.id === reportId);
+
+    if (reportIndex === -1) {
+      throw new NotFoundException(`Report with ID ${reportId} not found`);
+    }
+
+    const reportToRemove = patient.reports[reportIndex];
+
+    // Delete from Cloudinary
+    await this.cloudinaryService.deleteImage(reportToRemove.public_id);
+
+    // Remove from array
+    patient.reports.splice(reportIndex, 1);
+
+    return await this.patientsRepository.save(patient);
   }
 
-  // Add new reports to existing ones
-  patient.reports = [...patient.reports, ...newReports];
+  // ADD method to clear all reports
+  async getPatientReport(patientId: number, reportId: string) {
+    const patient = await this.patientsRepository.findOne({
+      where: { patient_id: patientId }
+    });
 
-  return await this.patientsRepository.save(patient);
-}
+    if (!patient || !patient.reports) {
+      throw new NotFoundException('Report not found');
+    }
 
-// ADD method to remove a specific report
-async removePatientReport(patientId: number, reportIndex: number): Promise<Patient> {
-  const patient = await this.patientsRepository.findOne({ 
-    where: { patient_id: patientId } 
-  });
-  
-  if (!patient) {
-    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+    const report = patient.reports.find(r => r.id === reportId);
+
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+
+    return report;
   }
-
-  if (!patient.reports || patient.reports.length <= reportIndex) {
-    throw new NotFoundException(`Report not found at index ${reportIndex}`);
-  }
-
-  const reportToRemove = patient.reports[reportIndex];
-
-  // Delete from Cloudinary
-  await this.cloudinaryService.deleteImage(reportToRemove.public_id);
-
-  // Remove from array
-  patient.reports.splice(reportIndex, 1);
-
-  return await this.patientsRepository.save(patient);
-}
-
-// ADD method to clear all reports
-async clearAllPatientReports(patientId: number): Promise<Patient> {
-  const patient = await this.patientsRepository.findOne({ 
-    where: { patient_id: patientId } 
-  });
-  
-  if (!patient) {
-    throw new NotFoundException(`Patient with ID ${patientId} not found`);
-  }
-
-  if (patient.reports && patient.reports.length > 0) {
-    // Delete all images from Cloudinary
-    const deletePromises = patient.reports.map(report => 
-      this.cloudinaryService.deleteImage(report.public_id)
-    );
-    await Promise.all(deletePromises);
-
-    // Clear reports array
-    patient.reports = [];
-  }
-
-  return await this.patientsRepository.save(patient);
-}
 
   async remove(id: number): Promise<{ message: string }> {
-  try {
-    const patient = await this.patientsRepository.findOne({ 
-      where: { patient_id: id } 
-    });
-    
-    if (patient && patient.reports && patient.reports.length > 0) {
-      // Delete all report images from Cloudinary
-      const deletePromises = patient.reports.map(report => 
-        this.cloudinaryService.deleteImage(report.public_id)
-      );
-      await Promise.all(deletePromises);
+    try {
+      const patient = await this.patientsRepository.findOne({
+        where: { patient_id: id }
+      });
+
+      if (patient && patient.reports && patient.reports.length > 0) {
+        // Delete all report images from Cloudinary
+        const deletePromises = patient.reports.map(report =>
+          this.cloudinaryService.deleteImage(report.public_id)
+        );
+        await Promise.all(deletePromises);
+      }
+
+      const result = await this.patientsRepository.delete(id);
+
+      if (result.affected === 0) {
+        throw new NotFoundException(`Patient with ID ${id} not found`);
+      }
+
+      return { message: 'Patient deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting patient:', error);
+
+      if (error.message.includes('foreign key constraint')) {
+        throw new Error('Cannot delete patient. There are associated sessions or payments.');
+      }
+
+      throw new Error('Failed to delete patient');
     }
-
-    const result = await this.patientsRepository.delete(id);
-
-    if (result.affected === 0) {
-      throw new NotFoundException(`Patient with ID ${id} not found`);
-    }
-
-    return { message: 'Patient deleted successfully' };
-  } catch (error) {
-    console.error('Error deleting patient:', error);
-
-    if (error.message.includes('foreign key constraint')) {
-      throw new Error('Cannot delete patient. There are associated sessions or payments.');
-    }
-
-    throw new Error('Failed to delete patient');
   }
-}
 
   private buildFindQuery(
     userRole: UserRole,
