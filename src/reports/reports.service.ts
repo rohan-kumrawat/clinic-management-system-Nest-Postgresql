@@ -314,39 +314,34 @@ export class ReportsService {
 
   async getDoctorWiseStats() {
   try {
-    console.log('🔍 Starting doctor-wise stats calculation...');
+    console.log('🔍 Starting doctor-wise stats calculation with raw SQL...');
 
-    // Use optimized query with proper joins
-    const doctorStats = await this.doctorsRepository
-      .createQueryBuilder('doctor')
-      .leftJoin('doctor.sessions', 'sessions')
-      .leftJoin('sessions.patient', 'patient')
-      .leftJoin('patient.payments', 'payments')
-      .select([
-        'doctor.doctor_id as doctorId',
-        'doctor.name as doctorName', 
-        'doctor.specialization as specialization',
-        'COUNT(DISTINCT sessions.patient_id) as patientCount',
-        'COUNT(sessions.session_id) as sessionCount',
-        'COALESCE(SUM(payments.amount_paid), 0) as revenue'
-      ])
-      .groupBy('doctor.doctor_id, doctor.name, doctor.specialization')
-      .orderBy('revenue', 'DESC')
-      .getRawMany();
+    const doctorStats = await this.doctorsRepository.query(`
+      SELECT 
+        d.doctor_id as "doctorId",
+        d.name as "doctorName", 
+        d.specialization as "specialization",
+        COUNT(DISTINCT s.patient_id) as "patientCount",
+        COUNT(s.session_id) as "sessionCount",
+        COALESCE(SUM(p.amount_paid), 0) as "revenue"
+      FROM doctors d
+      LEFT JOIN sessions s ON d.doctor_id = s.doctor_id
+      LEFT JOIN patients pt ON s.patient_id = pt.patient_id  
+      LEFT JOIN payments p ON pt.patient_id = p.patient_id
+      GROUP BY d.doctor_id, d.name, d.specialization
+      ORDER BY revenue DESC
+    `);
 
-    console.log('📈 Doctor stats from query:', doctorStats);
+    console.log('📈 Raw SQL doctor stats:', doctorStats);
 
-    // Format the response
-    const formattedStats = doctorStats.map(stat => ({
+    return doctorStats.map(stat => ({
       doctorId: stat.doctorId,
       doctorName: stat.doctorName,
       specialization: stat.specialization,
-      patientCount: parseInt(stat.patientcount) || 0,
-      sessionCount: parseInt(stat.sessioncount) || 0,
+      patientCount: parseInt(stat.patientCount) || 0,
+      sessionCount: parseInt(stat.sessionCount) || 0,
       revenue: parseFloat(stat.revenue) || 0
     }));
-
-    return formattedStats;
 
   } catch (error) {
     console.error('💥 Error in getDoctorWiseStats:', error);
