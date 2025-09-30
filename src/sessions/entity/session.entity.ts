@@ -11,6 +11,12 @@ export class Session {
   @PrimaryGeneratedColumn()
   session_id: number;
 
+  @Column()
+  patient_id: number;
+
+  @Column()
+  doctor_id: number;
+
   @ManyToOne(() => Patient, patient => patient.sessions)
   @JoinColumn({ name: 'patient_id' }) // ✅ Explicit join column add karein
   patient: Patient;

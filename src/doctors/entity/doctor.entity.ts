@@ -38,11 +38,9 @@ export class Doctor {
   updated_at: Date;
 
   @OneToMany(() => Patient, patient => patient.assigned_doctor)
-  @Exclude()
   patients: Patient[];
 
   @OneToMany(() => Session, session => session.doctor)
-  @Exclude()
   sessions: Session[];
 
   active_patients_count?: number;

@@ -16,6 +16,9 @@ export class Payment {
   @PrimaryGeneratedColumn()
   payment_id: number;
 
+  @Column()
+  patient_id: number;
+
   @ManyToOne(() => Patient, patient => patient.payments)
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
