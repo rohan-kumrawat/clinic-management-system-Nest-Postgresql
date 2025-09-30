@@ -316,60 +316,36 @@ export class ReportsService {
   try {
     console.log('🔍 Starting doctor-wise stats calculation...');
 
-    // Get all doctors with their relations
-    const doctors = await this.doctorsRepository.find({
-      relations: ['sessions', 'sessions.patient', 'sessions.patient.payments']
-    });
+    // Use raw SQL query for better performance and accuracy
+    const doctorStats = await this.doctorsRepository.query(`
+      SELECT 
+        d.doctor_id as "doctorId",
+        d.name as "doctorName",
+        d.specialization as "specialization",
+        COUNT(DISTINCT s.patient_id) as "patientCount",
+        COUNT(s.session_id) as "sessionCount",
+        COALESCE(SUM(p.amount_paid), 0) as "revenue"
+      FROM doctors d
+      LEFT JOIN sessions s ON d.doctor_id = s.doctor_id
+      LEFT JOIN patients pt ON s.patient_id = pt.patient_id
+      LEFT JOIN payments p ON pt.patient_id = p.patient_id
+      GROUP BY d.doctor_id, d.name, d.specialization
+      ORDER BY revenue DESC
+    `);
 
-    console.log(`📊 Found ${doctors.length} doctors`);
+    console.log('📈 Doctor stats from SQL query:', doctorStats);
 
-    const stats = doctors.map(doctor => {
-      console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
+    // Format the response
+    const formattedStats = doctorStats.map(stat => ({
+      doctorId: stat.doctorId,
+      doctorName: stat.doctorName,
+      specialization: stat.specialization,
+      patientCount: parseInt(stat.patientCount) || 0,
+      sessionCount: parseInt(stat.sessionCount) || 0,
+      revenue: parseFloat(stat.revenue) || 0
+    }));
 
-      // Get all sessions for this doctor
-      const sessions = doctor.sessions || [];
-      console.log(`📅 Doctor ${doctor.doctor_id} has ${sessions.length} sessions`);
-
-      // Get unique patients from sessions
-      const uniquePatients = new Map();
-      
-      sessions.forEach(session => {
-        if (session.patient) {
-          uniquePatients.set(session.patient.patient_id, session.patient);
-        }
-      });
-
-      console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatients.size} unique patients`);
-
-      // Calculate total revenue from all patients treated by this doctor
-      let totalRevenue = 0;
-      let totalSessions = sessions.length;
-      let totalPatients = uniquePatients.size;
-
-      // Calculate revenue from all payments of patients treated by this doctor
-      uniquePatients.forEach(patient => {
-        if (patient.payments && patient.payments.length > 0) {
-          const patientRevenue = patient.payments.reduce((sum, payment) => {
-            return sum + parseFloat(payment.amount_paid.toString());
-          }, 0);
-          totalRevenue += patientRevenue;
-        }
-      });
-
-      console.log(`💰 Doctor ${doctor.doctor_id} revenue: ${totalRevenue}`);
-
-      return {
-        doctorId: doctor.doctor_id,
-        doctorName: doctor.name,
-        specialization: doctor.specialization,
-        patientCount: totalPatients,
-        sessionCount: totalSessions,
-        revenue: Math.round(totalRevenue * 100) / 100 // Round to 2 decimal places
-      };
-    });
-
-    console.log('📈 Final doctor-wise stats:', stats);
-    return stats;
+    return formattedStats;
 
   } catch (error) {
     console.error('💥 Error in getDoctorWiseStats:', error);
