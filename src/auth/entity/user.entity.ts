@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator';
+import { Exclude } from 'class-transformer';
 
 export enum UserRole {
   OWNER = 'owner',

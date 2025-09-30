@@ -31,6 +31,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
@@ -50,6 +51,7 @@
     "dotenv": "^17.2.1",
     "mapped-types": "^0.0.1",
     "multer": "^2.0.2",
+    "nodemailer": "^7.0.6",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.17.2",
@@ -71,6 +73,7 @@
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
+    "@types/nodemailer": "^7.0.2",
     "@types/pdfkit": "^0.17.3",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^10.0.0",

@@ -6,6 +6,8 @@ import { RolesGuard } from './roles.gaurd';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { UserRole } from './entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -52,7 +54,7 @@ export class AuthController {
   @Put('receptionists/:id/password')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.OWNER)
-  async resetPassword(
+  async resetReceptionPassword(
     @Param('id') id: string,
     @Body() changePasswordDto: ChangePasswordDto
   ) {
@@ -66,4 +68,14 @@ export class AuthController {
   async deleteReceptionists(@Param('id') id: string) {
     return this.authService.deleteReceptionists(parseInt(id));
   }
+
+  @Post('forgot-password')
+async forgotAdminPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+  return this.authService.forgotAdminPassword(forgotPasswordDto.email);
+}
+
+@Post('reset-password')
+async resetAdminPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+  return this.authService.resetAdminPassword(resetPasswordDto);
+}
 }
