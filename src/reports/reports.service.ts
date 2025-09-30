@@ -314,7 +314,7 @@ export class ReportsService {
 
   async getDoctorWiseStats() {
   try {
-    console.log('🔍 Starting doctor-wise stats with direct queries...');
+    console.log('🔍 Starting doctor-wise stats calculation...');
 
     // Get all doctors
     const doctors = await this.doctorsRepository.find();
@@ -324,25 +324,19 @@ export class ReportsService {
       try {
         console.log(`👨‍⚕️ Processing doctor ${doctor.doctor_id} - ${doctor.name}`);
 
-        // ✅ DIRECT QUERY 1: Get sessions count for this doctor
-        const sessionCountResult = await this.sessionsRepository
+        // Get sessions for this doctor
+        const sessions = await this.sessionsRepository
           .createQueryBuilder('session')
           .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
-          .getCount();
+          .getMany();
 
-        console.log(`📅 Doctor ${doctor.doctor_id} has ${sessionCountResult} sessions`);
+        console.log(`📅 Doctor ${doctor.doctor_id} has ${sessions.length} sessions`);
 
-        // ✅ DIRECT QUERY 2: Get unique patients from sessions
-        const uniquePatientsResult = await this.sessionsRepository
-          .createQueryBuilder('session')
-          .select('DISTINCT session.patient_id', 'patient_id')
-          .where('session.doctor_id = :doctorId', { doctorId: doctor.doctor_id })
-          .getRawMany();
-
-        const uniquePatientIds = uniquePatientsResult.map(p => p.patient_id);
+        // Get unique patient IDs from sessions
+        const uniquePatientIds = [...new Set(sessions.map(s => s.patient_id))];
         console.log(`👥 Doctor ${doctor.doctor_id} treated ${uniquePatientIds.length} patients:`, uniquePatientIds);
 
-        // ✅ DIRECT QUERY 3: Get revenue from payments of these patients
+        // Calculate revenue ONLY from patients treated by this doctor
         let totalRevenue = 0;
         
         if (uniquePatientIds.length > 0) {
@@ -355,14 +349,14 @@ export class ReportsService {
           totalRevenue = parseFloat(revenueResult?.total || '0');
         }
 
-        console.log(`💰 Doctor ${doctor.doctor_id} revenue: ${totalRevenue}`);
+        console.log(`💰 Doctor ${doctor.doctor_id} revenue from ${uniquePatientIds.length} patients: ${totalRevenue}`);
 
         return {
           doctorId: doctor.doctor_id,
           doctorName: doctor.name,
           specialization: doctor.specialization,
           patientCount: uniquePatientIds.length,
-          sessionCount: sessionCountResult,
+          sessionCount: sessions.length,
           revenue: totalRevenue
         };
       } catch (error) {
