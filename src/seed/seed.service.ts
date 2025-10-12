@@ -23,10 +23,10 @@ export class SeedService implements OnApplicationBootstrap {
     if (!adminExists) {
       const hashedPassword = bcrypt.hashSync('123456', 10);
       const admin = this.userRepository.create({
-        email: 'parthyadav141@gmail.com',
+        email: 'shashipareta12@gmail.com',
         password: hashedPassword,
-        name: 'Test Admin', // ✅ Required field
-        mobile: '0000000000', // ✅ Required field (temporary number)
+        name: 'Shashi Pareta', // ✅ Required field
+        mobile: '8817144273', // ✅ Required field (temporary number)
         role: UserRole.OWNER, // ✅ Role
         isActive: true, // ✅ Default true hai but explicitly set karein
       });
