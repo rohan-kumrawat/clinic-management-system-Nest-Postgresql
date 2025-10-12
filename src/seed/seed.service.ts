@@ -17,11 +17,11 @@ export class SeedService implements OnApplicationBootstrap {
 
   async seedAdmin() {
     const adminExists = await this.userRepository.findOne({ 
-      where: { email: 'parthyadav141@gmail.com' } 
+      where: { email: 'shashipareta12@gmail.com' } 
     });
     
     if (!adminExists) {
-      const hashedPassword = bcrypt.hashSync('admin123', 10);
+      const hashedPassword = bcrypt.hashSync('123456', 10);
       const admin = this.userRepository.create({
         email: 'parthyadav141@gmail.com',
         password: hashedPassword,
