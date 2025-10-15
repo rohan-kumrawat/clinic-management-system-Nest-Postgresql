@@ -8,7 +8,8 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { v4 as uuidv4 } from 'uuid';
-
+import { Session } from '../sessions/entity/session.entity';
+import { Payment } from '../payments/entity/payment.entity';
 
 @Injectable()
 export class PatientsService {
@@ -397,37 +398,86 @@ async clearAllPatientReports(patientId: number): Promise<Patient> {
   return patient.reports || [];
 }
 
-  async remove(id: number): Promise<{ message: string }> {
-    try {
-      const patient = await this.patientsRepository.findOne({
-        where: { patient_id: id }
-      });
+ async remove(id: number): Promise<{ message: string }> {
+  // ✅ SESSIONS AUR PAYMENTS REPOSITORIES INJECT KAREN
+  const queryRunner = this.patientsRepository.manager.connection.createQueryRunner();
+  
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-      if (patient && patient.reports && patient.reports.length > 0) {
-        // Delete all report images from Cloudinary
-        const deletePromises = patient.reports.map(report =>
-          this.cloudinaryService.deleteFile(report.public_id)
-        );
-        await Promise.all(deletePromises);
-      }
+  try {
+    console.log(`Starting deletion process for patient ID: ${id}`);
 
-      const result = await this.patientsRepository.delete(id);
+    // 1. Pehle patient find karo with relations
+    const patient = await queryRunner.manager.findOne(Patient, {
+      where: { patient_id: id },
+      relations: ['sessions', 'payments'] // ✅ RELATIONS LOAD KAREN
+    });
 
-      if (result.affected === 0) {
-        throw new NotFoundException(`Patient with ID ${id} not found`);
-      }
-
-      return { message: 'Patient deleted successfully' };
-    } catch (error) {
-      console.error('Error deleting patient:', error);
-
-      if (error.message.includes('foreign key constraint')) {
-        throw new Error('Cannot delete patient. There are associated sessions or payments.');
-      }
-
-      throw new Error('Failed to delete patient');
+    if (!patient) {
+      throw new NotFoundException(`Patient with ID ${id} not found`);
     }
+
+    console.log(`Found patient: ${patient.name}`);
+    console.log(`Related sessions: ${patient.sessions?.length || 0}`);
+    console.log(`Related payments: ${patient.payments?.length || 0}`);
+
+    // 2. Pehle related SESSIONS delete karo
+    if (patient.sessions && patient.sessions.length > 0) {
+      console.log(`Deleting ${patient.sessions.length} sessions...`);
+      await queryRunner.manager.delete(Session, { patient: { patient_id: id } });
+      console.log('Sessions deleted successfully');
+    }
+
+    // 3. Phir related PAYMENTS delete karo
+    if (patient.payments && patient.payments.length > 0) {
+      console.log(`Deleting ${patient.payments.length} payments...`);
+      await queryRunner.manager.delete(Payment, { patient: { patient_id: id } });
+      console.log('Payments deleted successfully');
+    }
+
+    // 4. Patient reports delete karo (Cloudinary se bhi) - Aapka existing code
+    if (patient.reports && patient.reports.length > 0) {
+      console.log(`Deleting ${patient.reports.length} reports from Cloudinary...`);
+      const deletePromises = patient.reports.map(report => {
+        const resourceType = report.file_type === 'pdf' ? 'raw' : 'image';
+        return this.cloudinaryService.deleteFile(report.public_id, resourceType);
+      });
+      await Promise.all(deletePromises);
+      console.log('Reports deleted from Cloudinary');
+    }
+
+    // 5. Ab finally PATIENT delete karo
+    console.log('Deleting patient record...');
+    const result = await queryRunner.manager.delete(Patient, id);
+
+    if (result.affected === 0) {
+      throw new NotFoundException(`Patient with ID ${id} not found after cleaning related data`);
+    }
+
+    await queryRunner.commitTransaction();
+    console.log(`✅ Successfully deleted patient ${id} and all related data`);
+
+    return { message: 'Patient and all related data deleted successfully' };
+
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    console.error('❌ Error deleting patient:', error);
+
+    // Specific error messages
+    if (error.message.includes('foreign key constraint')) {
+      throw new Error('Cannot delete patient. There are associated sessions or payments.');
+    }
+
+    if (error instanceof NotFoundException) {
+      throw error;
+    }
+
+    throw new Error('Failed to delete patient: ' + error.message);
+  } finally {
+    await queryRunner.release();
   }
+}
 
   private buildFindQuery(
     userRole: UserRole,
