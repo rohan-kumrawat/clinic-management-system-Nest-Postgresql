@@ -25,31 +25,35 @@ interface AuthenticatedRequest extends Request {
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) { }
 
-   @Post()
+  @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async create(@Body() patientData: CreatePatientDto): Promise<Patient> {
+  async create(
+    @Body() patientData: CreatePatientDto,
+    @Req() request: AuthenticatedRequest
+  ): Promise<Patient> {
     try {
-      return await this.patientsService.create(patientData);
+      const userId = request.user.userId;
+      return await this.patientsService.create(patientData, userId);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   @Put(':id')
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async update(
-    @Param('id') id: string,
-    @Body() updateData: UpdatePatientDto,
-    @Req() request: AuthenticatedRequest
-  ): Promise<Patient> {
-    try {
-      const userRole = request.user.role;
-      return await this.patientsService.update(+id, updateData, userRole);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async update(
+  @Param('id') id: string,
+  @Body() updateData: UpdatePatientDto,
+  @Req() request: AuthenticatedRequest
+): Promise<Patient> {
+  try {
+    const userRole = request.user.role;
+    const userId = request.user.userId;
+    return await this.patientsService.update(+id, updateData, userRole, userId); // ✅ userId PASS KAREN
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
   }
-
+}
 
   @Get()
 @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)

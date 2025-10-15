@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator';
 import { Exclude } from 'class-transformer';
+import { Patient } from 'src/patients/entity/patient.entity';
 
 export enum UserRole {
   OWNER = 'owner',
@@ -11,6 +12,12 @@ export enum UserRole {
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @OneToMany(() => Patient, (patient) => patient.created_by)
+  patientsCreated: Patient[];
+
+  @OneToMany(() => Patient, (patient) => patient.updated_by)
+  patientsUpdated: Patient[];
 
   @Column({ unique: true })
   @IsEmail()

@@ -5,7 +5,8 @@ import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { PatientStatus, VisitType, Gender } from '../../common/enums';
 import { DecimalTransformer } from 'src/common/decimal.transformer';
-import { v4 as uuidv4 } from 'uuid';
+import { User } from 'src/auth/entity/user.entity';
+
 
 @Entity('patients')
 export class Patient {
@@ -76,6 +77,14 @@ export class Patient {
   
   @Column({ nullable: true })
   attachment: string;
+
+  @ManyToOne(() => User, (user) => user.patientsCreated)
+  @JoinColumn({ name: 'created_by' })
+  created_by: User;
+
+  @ManyToOne(() => User, (user) => user.patientsUpdated, { nullable: true })
+  @JoinColumn({ name: 'updated_by' })
+  updated_by: User;
   
   @ManyToOne(() => Doctor, doctor => doctor.patients)
   @JoinColumn({ name: 'assigned_doctor_id' }) // Explicitly specify the column name

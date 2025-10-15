@@ -5,10 +5,11 @@ import { PatientsController } from './patients.controller';
 import { Patient } from './entity/patient.entity';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { PatientsImageController } from './patients-image.controller';
+import { User } from 'src/auth/entity/user.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Patient]),
+    TypeOrmModule.forFeature([Patient, User]),
     CloudinaryModule,
   ],
   providers: [PatientsService],
@@ -16,6 +17,6 @@ import { PatientsImageController } from './patients-image.controller';
     PatientsController,
     PatientsImageController,
   ],
-  exports: [PatientsService],
+  exports: [PatientsService]
 })
 export class PatientsModule {}

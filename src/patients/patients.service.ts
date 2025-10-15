@@ -2,24 +2,34 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, ILike, SelectQueryBuilder, Brackets } from 'typeorm';
 import { Patient } from './entity/patient.entity';
-import { UserRole } from '../auth/entity/user.entity';
+import { User, UserRole } from '../auth/entity/user.entity';
 import { PatientStatus, PaymentStatus, VisitType, Gender } from 'src/common/enums';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { v4 as uuidv4 } from 'uuid';
 
+
 @Injectable()
 export class PatientsService {
   constructor(
     @InjectRepository(Patient)
     private patientsRepository: Repository<Patient>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
     private readonly cloudinaryService: CloudinaryService,
   ) { }
 
-  async create(patientData: CreatePatientDto): Promise<Patient> {
+  async create(patientData: CreatePatientDto, createdByUserId: number): Promise<Patient> {
     try {
       console.log('Received patientData:', patientData);
+      console.log('Created by user ID:', createdByUserId);
+
+      // Find the user who is creating the patient
+      const createdByUser = await this.usersRepository.findOne({ where: { id: createdByUserId } });
+      if (!createdByUser) {
+        throw new NotFoundException(`User with ID ${createdByUserId} not found`);
+      }
 
       // Handle the assigned_doctor object from frontend
       if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
@@ -42,7 +52,11 @@ export class PatientsService {
 
       console.log('Saving patientData:', patientData);
 
-      const patient = this.patientsRepository.create(patientData);
+      const patient = this.patientsRepository.create({
+        ...patientData,
+        created_by: createdByUser, // Set the created_by relationship
+      });
+
       const savedPatient = await this.patientsRepository.save(patient);
 
       console.log('Saved patient:', savedPatient);
@@ -54,10 +68,21 @@ export class PatientsService {
     }
   }
 
-  async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null): Promise<Patient> {
+  async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null, updatedByUserId?: number): Promise<Patient> {
     try {
       await this.findOne(id, userRole);
 
+       if (updatedByUserId) {
+        const updatedByUser = await this.usersRepository.findOne({ 
+          where: { id: updatedByUserId } 
+        });
+
+        if (updatedByUser) {
+          // Add updated_by to update data
+          updateData['updated_by'] = updatedByUser;
+        }
+      }
+      
       // Handle the assigned_doctor object in update as well
       if (updateData.assigned_doctor && typeof updateData.assigned_doctor === 'object') {
         const doctorData = updateData.assigned_doctor as any;
@@ -162,6 +187,8 @@ export class PatientsService {
         .createQueryBuilder('patient')
         .leftJoin('patient.assigned_doctor', 'doctor')
         .addSelect(['doctor.doctor_id', 'doctor.name'])
+        .leftJoin('patient.created_by', 'createdBy')
+        .addSelect(['createdBy.id', 'createdBy.name', 'createdBy.email'])
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
         .where('patient.patient_id = :id', { id });
 
@@ -215,6 +242,13 @@ export class PatientsService {
         name: patient.assigned_doctor.name
       } : null;
 
+      // Format created_by user data
+      const formattedCreatedBy = patient.created_by ? {
+        id: patient.created_by.id,
+        name: patient.created_by.name,
+        email: patient.created_by.email
+      } : null;
+
       // Return the complete patient object with all stats
       return {
         ...patient,
@@ -223,6 +257,7 @@ export class PatientsService {
         paid_amount: paidAmount,
         payment_status: paymentStatus,
         assigned_doctor: formattedDoctor,
+        created_by: formattedCreatedBy
       };
     } catch (error) {
       console.error('Error fetching patient:', error);
