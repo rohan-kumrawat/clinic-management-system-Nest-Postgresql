@@ -136,28 +136,52 @@ export class DoctorsService {
     }
   }
 
-  async remove(id: number, deletedByUserId?: number): Promise<{ message: string }> {
-  try {
-    const doctor = await this.doctorsRepository.findOne({
-      where: { doctor_id: id, deleted: false }
-    });
+async remove(id: number, deletedByUserId?: number): Promise<{ 
+    message: string; 
+    deleteType: 'permanent' | 'soft';
+    patientCount: number;
+    }> {
+    try {
+      const doctor = await this.doctorsRepository.findOne({
+        where: { doctor_id: id, deleted: false }
+      });
 
-    if (!doctor) {
-      throw new NotFoundException(`Doctor with ID ${id} not found`);
+      if (!doctor) {
+        throw new NotFoundException(`Doctor with ID ${id} not found`);
+      }
+
+      // Count assigned patients
+      const patientCount = await this.patientsRepository.count({
+        where: {
+          assigned_doctor: { doctor_id: id }
+        }
+      });
+
+      if (patientCount === 0) {
+        // Permanent delete
+        await this.doctorsRepository.delete(id);
+        return { 
+          message: 'Doctor permanently deleted from system',
+          deleteType: 'permanent',
+          patientCount: 0
+        };
+      } else {
+        // Soft delete
+        await this.doctorsRepository.update(id, {
+          deleted: true,
+          deleted_at: new Date(),
+          deleted_by: deletedByUserId
+        });
+        return { 
+          message: `Doctor hidden from active list. ${patientCount} patients remain assigned.`,
+          deleteType: 'soft',
+          patientCount
+        };
+      }
+    } catch (error) {
+      console.error('Error deleting doctor:', error);
+      throw new Error('Failed to delete doctor');
     }
-
-    // ✅ SOFT DELETE - just mark as deleted
-    await this.doctorsRepository.update(id, {
-      deleted: true,
-      deleted_at: new Date(),
-      deleted_by: deletedByUserId
-    });
-
-    return { message: 'Doctor deleted successfully' };
-  } catch (error) {
-    console.error('Error deleting doctor:', error);
-    throw new Error('Failed to delete doctor');
-  }
 }
 
 async restore(id: number): Promise<{ message: string }> {

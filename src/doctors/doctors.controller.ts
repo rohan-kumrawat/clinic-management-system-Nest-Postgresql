@@ -25,7 +25,7 @@ export class DoctorsController {
     return this.doctorsService.findAll();
   }
 
-  @Get()
+  @Get('deleted')
   @Roles(UserRole.OWNER)
   findAllDeleted(): Promise<Doctor[]> {
     return this.doctorsService.findAllDeleted();
@@ -59,7 +59,7 @@ export class DoctorsController {
     return this.doctorsService.remove(+id);
   }
 
-   @Put(':id/restore')
+  @Put(':id/restore')
   @Roles(UserRole.OWNER)
   restore(@Param('id') id: string): Promise<{ message: string }> {
     return this.doctorsService.restore(+id);
