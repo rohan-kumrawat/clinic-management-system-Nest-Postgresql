@@ -25,6 +25,12 @@ export class DoctorsController {
     return this.doctorsService.findAll();
   }
 
+  @Get()
+  @Roles(UserRole.OWNER)
+  findAllDeleted(): Promise<Doctor[]> {
+    return this.doctorsService.findAllDeleted();
+  }
+
   @Get('dropdown')
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   async findAllForDropdown(): Promise<{ doctor_id: number; name: string }[]> {
@@ -51,5 +57,11 @@ export class DoctorsController {
   @Roles(UserRole.OWNER)
   remove(@Param('id') id: string): Promise<{ message: string }> {
     return this.doctorsService.remove(+id);
+  }
+
+   @Put(':id/restore')
+  @Roles(UserRole.OWNER)
+  restore(@Param('id') id: string): Promise<{ message: string }> {
+    return this.doctorsService.restore(+id);
   }
 }

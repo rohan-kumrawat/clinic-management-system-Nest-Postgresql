@@ -27,6 +27,7 @@ export class DoctorsService {
 
  async findAll(): Promise<Doctor[]> {
     const doctors = await this.doctorsRepository.find({
+      where: { deleted: false },
       order: { name: 'ASC' },
     });
 
@@ -50,13 +51,39 @@ export class DoctorsService {
     return doctorsWithCount;
   }
 
+  // List of Deleted doctors
+  async findAllDeleted(): Promise<Doctor[]> {
+    const doctors = await this.doctorsRepository.find({
+      where: { deleted: true },
+      order: { name: 'ASC' },
+    });
+
+    // Har doctor ke liye patients count calculate karein
+    const doctorsWithCount = await Promise.all(
+      doctors.map(async (doctor) => {
+        const PatientsCount = await this.patientsRepository.count({
+          where: {
+            assigned_doctor: { doctor_id: doctor.doctor_id }
+          },
+        });
+        
+        return {
+          ...doctor,
+          patients_count: PatientsCount,
+        };
+      })
+    );
+
+    return doctorsWithCount;
+  }
+
 
 
   async findAllForDropdown(): Promise<{ doctor_id: number; name: string }[]> {
     try {
       const doctors = await this.doctorsRepository.find({
         select: ['doctor_id', 'name'], // Sirf yeh do fields select karein
-        where: { status: true }, // Sirf active doctors
+        where: { status: true, deleted: false }, // Sirf active doctors
         order: { name: 'ASC' }, // Name ke hisaab se sort
       });
       
@@ -70,7 +97,7 @@ export class DoctorsService {
 
   async findOne(id: number): Promise<Doctor> {
     const doctor = await this.doctorsRepository.findOne({
-      where: { doctor_id: id },
+      where: { doctor_id: id , deleted: false },
     });
 
     if (!doctor) {
@@ -109,24 +136,38 @@ export class DoctorsService {
     }
   }
 
-  async remove(id: number): Promise<{ message: string }> {
-    try {
-      const result = await this.doctorsRepository.delete(id);
-      
-      if (result.affected === 0) {
-        throw new NotFoundException(`Doctor with ID ${id} not found`);
-      }
-      
-      return { message: 'Doctor deleted successfully' };
-    } catch (error) {
-      console.error('Error deleting doctor:', error);
-      
-      // Agar foreign key constraint error hai to
-      if (error.message.includes('foreign key constraint')) {
-        throw new Error('Cannot delete doctor. There are associated patients or sessions.');
-      }
-      
-      throw new Error('Failed to delete doctor');
+  async remove(id: number, deletedByUserId?: number): Promise<{ message: string }> {
+  try {
+    const doctor = await this.doctorsRepository.findOne({
+      where: { doctor_id: id, deleted: false }
+    });
+
+    if (!doctor) {
+      throw new NotFoundException(`Doctor with ID ${id} not found`);
     }
+
+    // ✅ SOFT DELETE - just mark as deleted
+    await this.doctorsRepository.update(id, {
+      deleted: true,
+      deleted_at: new Date(),
+      deleted_by: deletedByUserId
+    });
+
+    return { message: 'Doctor deleted successfully' };
+  } catch (error) {
+    console.error('Error deleting doctor:', error);
+    throw new Error('Failed to delete doctor');
   }
+}
+
+async restore(id: number): Promise<{ message: string }> {
+  await this.doctorsRepository.update(id, {
+    deleted: false,
+    deleted_at: undefined,
+    deleted_by: undefined
+  });
+  return { message: 'Doctor restored successfully' };
+}
+
+
 }

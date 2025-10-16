@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
 import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
@@ -30,6 +30,16 @@ export class Doctor {
 
   @Column({ default: true })
   status: boolean;
+
+  @Column({ default: false })
+  @Index()
+  deleted: boolean;  // Soft delete flag
+  
+  @Column({ nullable: true })
+  deleted_at: Date;  // When was it deleted
+  
+  @Column({ nullable: true })
+  deleted_by: number; // Who deleted (user_id)
 
   @CreateDateColumn()
   created_at: Date;
