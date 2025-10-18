@@ -19,6 +19,10 @@ export class CreatePatientDto {
   @Max(150)
   age: number;
 
+  @IsString()
+  @IsOptional()
+  remark?: string;
+
   @IsOptional()
   @IsString()
   referred_dr?: string;

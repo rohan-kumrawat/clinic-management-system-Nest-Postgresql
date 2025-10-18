@@ -22,6 +22,8 @@ export class Patient {
   @Column()
   age: number;
 
+  @Column({ type: 'text', nullable: true })
+  remarks: string;
   
   @Column({ nullable: true })
   referred_dr: string;

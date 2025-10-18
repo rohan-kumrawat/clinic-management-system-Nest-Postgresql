@@ -24,4 +24,8 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsNumber()
   @Min(0)
   per_session_amount?: number;
+
+  @IsOptional()
+  @IsString()
+  remark?: string;
 }
