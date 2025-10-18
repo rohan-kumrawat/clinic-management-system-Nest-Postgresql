@@ -1,7 +1,7 @@
 
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddRemarkToPatients implements MigrationInterface {
+export class AddRemarkToPatients1727836100000 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add remark column to patients table
         await queryRunner.query(`
