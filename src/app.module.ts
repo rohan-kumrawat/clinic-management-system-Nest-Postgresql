@@ -15,6 +15,8 @@ import { ReportsModule } from './reports/reports.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { SeedService } from './seed/seed.service';
 import { User } from './auth/entity/user.entity';
+import { PackagesModule } from './packages/packages.module';
+
 
 @Module({
   imports: [
@@ -47,6 +49,7 @@ import { User } from './auth/entity/user.entity';
     SessionsModule,
     PaymentsModule,
     ReportsModule,
+    PackagesModule,
   ],
   providers: [SeedService],
 })

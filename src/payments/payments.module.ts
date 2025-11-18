@@ -7,12 +7,15 @@ import { Payment } from './entity/payment.entity';
 import { PatientsModule } from '../patients/patients.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { Patient } from '../patients/entity/patient.entity';
+import { PackagesModule } from 'src/packages/packages.module';
+
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Payment, Patient]),
     PatientsModule,
     SessionsModule,
+    PackagesModule,
   ],
   providers: [PaymentsService],
   controllers: [PaymentsController],

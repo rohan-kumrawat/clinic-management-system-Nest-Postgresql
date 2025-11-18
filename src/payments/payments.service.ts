@@ -8,6 +8,7 @@ import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { User } from '../auth/entity/user.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { PackagesService } from 'src/packages/packages.service';
 
 
 @Injectable()
@@ -21,6 +22,7 @@ export class PaymentsService {
     private patientsRepository: Repository<Patient>,
     private patientsService: PatientsService,
     private sessionsService: SessionsService,
+    private packagesService: PackagesService,
   ) { }
 
   async create(createPaymentDto: CreatePaymentDto): Promise<any> {
@@ -44,13 +46,7 @@ export class PaymentsService {
       throw new NotFoundException(`Patient with ID ${paymentData.patient.patient_id} not found`);
     }
 
-    // Check if patient.total_amount exists
-    if (patient.total_amount === undefined || patient.total_amount === null) {
-      this.logger.error(`Patient #${patient.patient_id} is missing the 'total_amount' field.`);
-      throw new InternalServerErrorException(`Patient data is incomplete. Please check patient records.`);
-    }
-
-    // If session is provided, verify it exists
+    // ✅ FIX: Define sessionEntity variable
     let sessionEntity: Session | null = null;
     if (paymentData.session && paymentData.session.session_id) {
       try {
@@ -63,34 +59,47 @@ export class PaymentsService {
       }
     }
 
+    // ✅ NEW: Get active package for payment distribution
+    const activePackage = await this.packagesService.findActivePackage(patient.patient_id);
+    
+    if (!activePackage) {
+      throw new BadRequestException('No active package found for patient');
+    }
+
+    // Use package's financial data instead of patient's
+    const packageTotal = Number(activePackage.total_amount);
+    const packageCarryAmount = Number(activePackage.carry_amount || 0);
+    const packageReleasedSessions = Number(activePackage.released_sessions || 0);
+    const perSessionAmount = Number(activePackage.per_session_amount);
+
+    // Check if patient.total_amount exists (for backward compatibility)
+    if (patient.total_amount === undefined || patient.total_amount === null) {
+      this.logger.error(`Patient #${patient.patient_id} is missing the 'total_amount' field.`);
+      throw new InternalServerErrorException(`Patient data is incomplete. Please check patient records.`);
+    }
+
     // Validate amount
     if (paymentData.amount_paid <= 0) {
       throw new BadRequestException('Payment amount must be greater than zero.');
     }
-
-    // Convert all decimal values to numbers to ensure proper calculations
-    const patientTotal = Number(patient.total_amount);
-    const patientCarryAmount = Number(patient.carry_amount || 0);
-    const patientReleasedSessions = Number(patient.released_sessions || 0);
-    const perSessionAmount = Number(patient.per_session_amount) || (patientTotal / (patient.total_sessions || 1));
 
     // Calculate total paid including this payment
     let totalPaid = await this.getTotalPaid(patient.patient_id).catch(() => 0);
     totalPaid = Number(totalPaid) + Number(paymentData.amount_paid);
 
     // Calculate remaining amount
-    const remainingAmount = patientTotal - totalPaid;
+    const remainingAmount = packageTotal - totalPaid;
 
     // Calculate released sessions and carry amount with proper decimal handling
-    const totalAvailableAmount = patientCarryAmount + Number(paymentData.amount_paid);
+    const totalAvailableAmount = packageCarryAmount + Number(paymentData.amount_paid);
     const sessionsToRelease = Math.floor(totalAvailableAmount / perSessionAmount);
     const newCarryAmount = totalAvailableAmount % perSessionAmount;
-    const newReleasedSessions = patientReleasedSessions + sessionsToRelease;
+    const newReleasedSessions = packageReleasedSessions + sessionsToRelease;
 
-    // Calculate remaining release sessions (attended sessions subtracted from released sessions)
+    // Calculate remaining release sessions
     const attendedSessionsResult = await this.patientsRepository.manager.query(
-      `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
-      [patient.patient_id]
+      `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1 AND package_id = $2`,
+      [patient.patient_id, activePackage.package_id]
     );
     const attendedSessionsCount = parseInt(attendedSessionsResult[0].count, 10);
     const remainingReleaseSessions = Math.max(newReleasedSessions - attendedSessionsCount, 0);
@@ -98,7 +107,7 @@ export class PaymentsService {
     // Create payment entity
     const payment = new Payment();
     payment.patient = patient;
-    payment.session = sessionEntity;
+    payment.session = sessionEntity; // ✅ Now sessionEntity is defined
     payment.created_by = { id: paymentData.created_by.id } as User;
     payment.amount_paid = Number(paymentData.amount_paid);
     payment.payment_mode = paymentData.payment_mode || PaymentMode.CASH;
@@ -108,13 +117,14 @@ export class PaymentsService {
 
     const savedPayment = await this.paymentsRepository.save(payment);
 
-    // Update patient with new released_sessions and carry_amount
-    await this.patientsRepository.update(patient.patient_id, {
-      released_sessions: newReleasedSessions,
-      carry_amount: parseFloat(newCarryAmount.toFixed(2)) // Ensure 2 decimal places
-    });
+    // ✅ UPDATE: Update PACKAGE instead of patient
+    await this.packagesService.updateReleasedSessions(
+      activePackage.package_id, 
+      newReleasedSessions, 
+      newCarryAmount
+    );
 
-    // ✅ Filtered response with remaining_release_sessions
+    // Return response
     return {
       payment_id: savedPayment.payment_id,
       patient: {
@@ -122,8 +132,14 @@ export class PaymentsService {
         name: patient.name,
         released_sessions: newReleasedSessions,
         carry_amount: parseFloat(newCarryAmount.toFixed(2)),
-        remaining_release_sessions: remainingReleaseSessions // Add remaining release sessions
+        remaining_release_sessions: remainingReleaseSessions
       },
+      package: {
+        package_id: activePackage.package_id,
+        package_name: activePackage.package_name,
+        remaining_sessions: activePackage.total_sessions - activePackage.used_sessions
+      },
+      // ✅ FIX: sessionEntity is now defined
       session: sessionEntity ? {
         session_id: sessionEntity.session_id,
         name: (sessionEntity as any).name || null,
@@ -150,7 +166,7 @@ export class PaymentsService {
     }
     throw new InternalServerErrorException('Failed to process payment due to an internal error.');
   }
-  }
+}
 
   async getTotalPaid(patientId: number): Promise<number> {
     try {

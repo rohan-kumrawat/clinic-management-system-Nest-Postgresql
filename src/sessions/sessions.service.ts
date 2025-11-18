@@ -5,6 +5,10 @@ import { Session } from './entity/session.entity';
 import { PatientsService } from '../patients/patients.service';
 import { DoctorsService } from '../doctors/doctors.service';
 import { ShiftType } from 'src/common/enums';
+import { PackagesService } from 'src/packages/packages.service';
+import { PatientPackage } from 'src/packages/entity/package.entity';
+import { CreateSessionDto } from './dto/create-session.dto';
+
 
 @Injectable()
 export class SessionsService {
@@ -13,26 +17,61 @@ export class SessionsService {
     private sessionsRepository: Repository<Session>,
     private patientsService: PatientsService,
     private doctorsService: DoctorsService,
+    private packagesService: PackagesService,
   ) {}
 
-  async create(sessionData: {
-    patient: { patient_id: number };
-    doctor?: { doctor_id: number };
-    created_by: { id: number };
-    session_date: Date;
-    remarks?: string;
-  }): Promise<Session> {
+  async create(createSessionDto: CreateSessionDto, createdByUserId: number): Promise<Session> {
     try {
+      // Convert DTO to session data format
+      const sessionData = {
+        patient: { patient_id: createSessionDto.patient.patient_id },
+        doctor: createSessionDto.doctor ? { doctor_id: createSessionDto.doctor.doctor_id } : undefined,
+        session_date: new Date(createSessionDto.session_date),
+        remarks: createSessionDto.remarks,
+        shift: createSessionDto.shift,
+        visit_type: createSessionDto.visit_type,
+        package_id: createSessionDto.package_id,
+        created_by: { id: createdByUserId }
+      };
+
       // Verify patient exists
       await this.patientsService.findOne(sessionData.patient.patient_id, null);
       
       // If doctor is provided, verify it exists
-      if (sessionData.doctor) {
+      if (sessionData.doctor && sessionData.doctor.doctor_id) {
         await this.doctorsService.findOne(sessionData.doctor.doctor_id);
       }
 
-      const session = this.sessionsRepository.create(sessionData);
-      return await this.sessionsRepository.save(session);
+      // Package handling
+      let packageEntity: PatientPackage | null = null;
+      if (sessionData.package_id) {
+        packageEntity = await this.packagesService.findOne(sessionData.package_id);
+      } else {
+        // Auto-assign to active package if no package specified
+        packageEntity = await this.packagesService.findActivePackage(sessionData.patient.patient_id);
+      }
+
+      // ✅ FIX: Proper session creation
+      const sessionToCreate = {
+        patient: sessionData.patient,
+        doctor: sessionData.doctor,
+        created_by: sessionData.created_by,
+        session_date: sessionData.session_date,
+        remarks: sessionData.remarks,
+        shift: sessionData.shift,
+        visit_type: sessionData.visit_type,
+        package: packageEntity || undefined
+      };
+
+      const session = this.sessionsRepository.create(sessionToCreate);
+      const savedSession = await this.sessionsRepository.save(session);
+
+      // Increment used_sessions in package
+      if (packageEntity) {
+        await this.packagesService.incrementUsedSessions(packageEntity.package_id);
+      }
+
+      return savedSession as Session;
     } catch (error) {
       console.error('Error creating session:', error);
       throw new Error('Failed to create session');

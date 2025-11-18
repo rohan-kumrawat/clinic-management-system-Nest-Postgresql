@@ -1,0 +1,53 @@
+import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
+
+export class CreatePackageDto {
+  @IsNotEmpty()
+  @IsString()
+  package_name: string;
+
+  @IsNumber()
+  @Min(0)
+  original_amount: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discount_amount?: number;
+
+  @IsNumber()
+  @Min(0)
+  total_amount: number;
+
+  @IsNumber()
+  @Min(1)
+  total_sessions: number;
+
+  @IsNumber()
+  @Min(0)
+  per_session_amount: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  released_sessions?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  carry_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  used_sessions?: number;
+
+  @IsOptional()
+  @IsEnum(['active', 'completed', 'cancelled'])
+  status?: string;
+
+  @IsOptional()
+  start_date?: Date;
+
+  @IsOptional()
+  end_date?: Date;
+}

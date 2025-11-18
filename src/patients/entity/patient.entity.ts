@@ -6,7 +6,7 @@ import { Payment } from '../../payments/entity/payment.entity';
 import { PatientStatus, VisitType, Gender } from '../../common/enums';
 import { DecimalTransformer } from 'src/common/decimal.transformer';
 import { User } from 'src/auth/entity/user.entity';
-
+import { PatientPackage } from '../../packages/entity/package.entity';
 
 @Entity('patients')
 export class Patient {
@@ -97,6 +97,9 @@ export class Patient {
   
   @OneToMany(() => Payment, payment => payment.patient)
   payments: Payment[];
+
+  @OneToMany(() => PatientPackage, pkg => pkg.patient)
+  packages: PatientPackage[];
   
   @Column({
     type: 'enum',

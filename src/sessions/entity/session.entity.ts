@@ -5,6 +5,7 @@ import { Doctor } from '../../doctors/entity/doctor.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { User } from '../../auth/entity/user.entity';
 import { ShiftType } from 'src/common/enums';
+import { PatientPackage } from 'src/packages/entity/package.entity';
 
 @Entity('sessions')
 export class Session {
@@ -29,7 +30,12 @@ export class Session {
   @JoinColumn({ name: 'created_by' })
   created_by: User;
 
-  
+  @ManyToOne(() => PatientPackage, { nullable: true })
+  @JoinColumn({ name: 'package_id' })
+  package?: PatientPackage;
+
+  @Column({ nullable: true })
+  package_id?: number;
   
   @Column({
     type: 'enum',

@@ -6,6 +6,8 @@ import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
 import { Request } from 'express';
+import { CreateSessionDto } from './dto/create-session.dto';
+
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -20,29 +22,19 @@ interface AuthenticatedRequest extends Request {
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
 
-  @Post()
-  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  async create(
-    @Body() sessionData: {
-      patient: { patient_id: number };
-      doctor?: { doctor_id: number };
-      session_date: Date;
-      remarks?: string;
-    },
-    @Req() request: AuthenticatedRequest
-  ): Promise<Session> {
-    try {
-      // Add created_by from the authenticated user
-      const sessionDataWithCreatedBy = {
-        ...sessionData,
-        created_by: { id: request.user.userId }
-      };
-      
-      return await this.sessionsService.create(sessionDataWithCreatedBy);
-    } catch (error) {
-      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+ @Post()
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async create(
+  @Body() createSessionDto: CreateSessionDto,
+  @Req() request: AuthenticatedRequest
+): Promise<Session> {
+  try {
+    const userId = request.user.userId;
+    return await this.sessionsService.create(createSessionDto, userId);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
   }
+}
 
   @Get()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)

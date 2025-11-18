@@ -11,6 +11,10 @@ import { Request } from 'express';
 import { PatientStatus, VisitType, PaymentStatus, Gender } from 'src/common/enums';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { PackagesService } from 'src/packages/packages.service';
+import { CreatePackageDto } from 'src/packages/dto/create-package.dto';
+import { ClosePackageDto } from 'src/packages/dto/close-package.dto';
+
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -20,10 +24,14 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
+
 @Controller('patients')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PatientsController {
-  constructor(private readonly patientsService: PatientsService) { }
+  constructor(
+    private readonly patientsService: PatientsService,
+    private readonly packagesService: PackagesService,
+  ) { }
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
@@ -108,24 +116,6 @@ async findAllActive(
   );
 }
 
-  // @Post(':id/upload')
-  // @UseInterceptors(FileInterceptor('file'))
-  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  // async uploadFile(
-  //   @Param('id') id: string,
-  //   @UploadedFile() file: Express.Multer.File,
-  //   @Req() request: AuthenticatedRequest
-  // ) {
-  //   try {
-  //     const userRole = request.user.role;
-  //     const patient = await this.patientsService.findOne(+id, userRole);
-  //     patient.attachment = file.filename;
-  //     await this.patientsService.update(+id, patient, userRole);
-  //     return { message: 'File uploaded successfully' };
-  //   } catch (error) {
-  //     throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
-  //   }
-  // }
 
 
   @Get('stats')
@@ -166,4 +156,60 @@ async findAllActive(
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  // For managing patient packages
+
+ @Get(':id/packages')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async getPatientPackages(
+  @Param('id', ParseIntPipe) id: number
+) {
+  try {
+    return await this.patientsService.getPatientPackages(id);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@Get(':id/active-package')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async getActivePatientPackage(
+  @Param('id', ParseIntPipe) id: number
+) {
+  try {
+    return await this.patientsService.getActivePatientPackage(id);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@Post(':id/packages')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async addPackageToPatient(
+  @Param('id', ParseIntPipe) id: number,
+  @Body() createPackageDto: CreatePackageDto,
+  @Req() request: AuthenticatedRequest
+) {
+  try {
+    const userId = request.user.userId;
+    return await this.patientsService.addPackageToPatient(id, createPackageDto, userId);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
+
+@Put('packages/:packageId/close')
+@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+async closePatientPackage(
+  @Param('packageId', ParseIntPipe) packageId: number,
+  @Body() closePackageDto: ClosePackageDto,
+  @Req() request: AuthenticatedRequest
+) {
+  try {
+    const userId = request.user.userId;
+    return await this.patientsService.closePatientPackage(packageId, closePackageDto, userId);
+  } catch (error) {
+    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 }

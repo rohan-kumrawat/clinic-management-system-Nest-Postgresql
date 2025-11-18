@@ -10,6 +10,10 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { v4 as uuidv4 } from 'uuid';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment } from '../payments/entity/payment.entity';
+import { PackagesService } from 'src/packages/packages.service';
+import { PatientPackage } from 'src/packages/entity/package.entity';
+import { CreatePackageDto } from 'src/packages/dto/create-package.dto';
+import { ClosePackageDto } from 'src/packages/dto/close-package.dto';
 
 @Injectable()
 export class PatientsService {
@@ -19,55 +23,131 @@ export class PatientsService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly packagesService: PackagesService,
   ) { }
 
+  // async create(patientData: CreatePatientDto, createdByUserId: number): Promise<Patient> {
+  //   try {
+  //     console.log('Received patientData:', patientData);
+  //     console.log('Created by user ID:', createdByUserId);
+
+  //     // Find the user who is creating the patient
+  //     const createdByUser = await this.usersRepository.findOne({ where: { id: createdByUserId } });
+  //     if (!createdByUser) {
+  //       throw new NotFoundException(`User with ID ${createdByUserId} not found`);
+  //     }
+
+  //     // Handle the assigned_doctor object from frontend
+  //     if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
+  //       const doctorData = patientData.assigned_doctor as any;
+  //       const doctorId = doctorData.id || doctorData.doctor_id;
+
+  //       console.log('Extracted doctorId:', doctorId);
+
+  //       if (doctorId) {
+  //         patientData.assigned_doctor = { doctor_id: doctorId } as any;
+  //       } else {
+  //         patientData.assigned_doctor = null;
+  //       }
+  //     }
+
+  //     // Agar frontend se per_session_amount nahi aaya hai toh calculate karein
+  //     if (!patientData.per_session_amount && patientData.total_sessions > 0) {
+  //       patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
+  //     }
+
+  //     console.log('Saving patientData:', patientData);
+
+  //     const patient = this.patientsRepository.create({
+  //       ...patientData,
+  //       created_by: createdByUser, // Set the created_by relationship
+  //     });
+
+  //     const savedPatient = await this.patientsRepository.save(patient);
+
+  //     console.log('Saved patient:', savedPatient);
+
+  //     return savedPatient;
+  //   } catch (error) {
+  //     console.error('Error creating patient:', error);
+  //     throw new Error('Failed to create patient. Please check your data.');
+  //   }
+  // }
+
   async create(patientData: CreatePatientDto, createdByUserId: number): Promise<Patient> {
-    try {
-      console.log('Received patientData:', patientData);
-      console.log('Created by user ID:', createdByUserId);
+  try {
+    console.log('Received patientData:', patientData);
+    console.log('Created by user ID:', createdByUserId);
 
-      // Find the user who is creating the patient
-      const createdByUser = await this.usersRepository.findOne({ where: { id: createdByUserId } });
-      if (!createdByUser) {
-        throw new NotFoundException(`User with ID ${createdByUserId} not found`);
-      }
-
-      // Handle the assigned_doctor object from frontend
-      if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
-        const doctorData = patientData.assigned_doctor as any;
-        const doctorId = doctorData.id || doctorData.doctor_id;
-
-        console.log('Extracted doctorId:', doctorId);
-
-        if (doctorId) {
-          patientData.assigned_doctor = { doctor_id: doctorId } as any;
-        } else {
-          patientData.assigned_doctor = null;
-        }
-      }
-
-      // Agar frontend se per_session_amount nahi aaya hai toh calculate karein
-      if (!patientData.per_session_amount && patientData.total_sessions > 0) {
-        patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
-      }
-
-      console.log('Saving patientData:', patientData);
-
-      const patient = this.patientsRepository.create({
-        ...patientData,
-        created_by: createdByUser, // Set the created_by relationship
-      });
-
-      const savedPatient = await this.patientsRepository.save(patient);
-
-      console.log('Saved patient:', savedPatient);
-
-      return savedPatient;
-    } catch (error) {
-      console.error('Error creating patient:', error);
-      throw new Error('Failed to create patient. Please check your data.');
+    // Find the user who is creating the patient
+    const createdByUser = await this.usersRepository.findOne({ where: { id: createdByUserId } });
+    if (!createdByUser) {
+      throw new NotFoundException(`User with ID ${createdByUserId} not found`);
     }
+
+    // Handle the assigned_doctor object from frontend
+    if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
+      const doctorData = patientData.assigned_doctor as any;
+      const doctorId = doctorData.id || doctorData.doctor_id;
+
+      console.log('Extracted doctorId:', doctorId);
+
+      if (doctorId) {
+        patientData.assigned_doctor = { doctor_id: doctorId } as any;
+      } else {
+        patientData.assigned_doctor = null;
+      }
+    }
+
+    // Agar frontend se per_session_amount nahi aaya hai toh calculate karein
+    if (!patientData.per_session_amount && patientData.total_sessions > 0) {
+      patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
+    }
+
+    console.log('Saving patientData:', patientData);
+
+    // Patient create karenge WITHOUT package fields
+    const { 
+      package_name, 
+      original_amount, 
+      discount_amount, 
+      total_amount, 
+      total_sessions, 
+      per_session_amount,
+      released_sessions,
+      carry_amount,
+      ...patientWithoutPackage 
+    } = patientData;
+
+    const patient = this.patientsRepository.create({
+      ...patientWithoutPackage,
+      created_by: createdByUser,
+    });
+
+    const savedPatient = await this.patientsRepository.save(patient);
+
+    // ✅ NEW: Create first package for patient
+    if (package_name && total_sessions > 0) {
+      await this.packagesService.create({
+        package_name,
+        original_amount: original_amount || 0,
+        discount_amount: discount_amount || 0,
+        total_amount: total_amount || 0,
+        total_sessions,
+        per_session_amount: per_session_amount || 0,
+        released_sessions: released_sessions || 0,
+        carry_amount: carry_amount || 0,
+      }, savedPatient.patient_id);
+    }
+
+    console.log('Saved patient with package:', savedPatient);
+
+    return savedPatient;
+  } catch (error) {
+    console.error('Error creating patient:', error);
+    throw new Error('Failed to create patient. Please check your data.');
   }
+}
 
   async update(id: number, updateData: UpdatePatientDto, userRole: UserRole | null = null, updatedByUserId?: number): Promise<Patient> {
     try {
@@ -728,4 +808,27 @@ async clearAllPatientReports(patientId: number): Promise<Patient> {
       throw new Error('Failed to get patient statistics');
     }
   }
+
+  // METHODS FOR PACKAGE INTEGRATION
+
+async getPatientPackages(patientId: number): Promise<PatientPackage[]> {
+  return await this.packagesService.findAllByPatient(patientId);
+}
+
+async getActivePatientPackage(patientId: number): Promise<PatientPackage | null> {
+  return await this.packagesService.findActivePackage(patientId);
+}
+
+async addPackageToPatient(patientId: number, createPackageDto: CreatePackageDto, userId: number): Promise<PatientPackage> {
+  const patient = await this.patientsRepository.findOne({ where: { patient_id: patientId } });
+  if (!patient) {
+    throw new NotFoundException(`Patient with ID ${patientId} not found`);
+  }
+
+  return await this.packagesService.create(createPackageDto, patientId);
+}
+
+async closePatientPackage(packageId: number, closePackageDto: ClosePackageDto, userId: number): Promise<PatientPackage> {
+  return await this.packagesService.closePackage(packageId, closePackageDto, userId);
+}
 }
