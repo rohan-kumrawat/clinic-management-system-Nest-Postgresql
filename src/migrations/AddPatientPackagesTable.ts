@@ -115,16 +115,24 @@ export class AddPatientPackagesTable1700000000000 implements MigrationInterface 
     }));
 
     // Migrate existing patient data to packages
-    await queryRunner.query(`
-      INSERT INTO patient_packages 
-        (patient_id, package_name, original_amount, discount_amount, total_amount, 
-         total_sessions, per_session_amount, released_sessions, carry_amount, status)
-      SELECT 
-        patient_id, package_name, original_amount, discount_amount, total_amount,
-        total_sessions, per_session_amount, released_sessions, carry_amount, 'active'
-      FROM patients 
-      WHERE package_name IS NOT NULL
-    `);
+     await queryRunner.query(`
+    INSERT INTO patient_packages 
+      (patient_id, package_name, original_amount, discount_amount, total_amount, 
+       total_sessions, per_session_amount, released_sessions, carry_amount, status)
+    SELECT 
+      patient_id, 
+      package_name,  -- ✅ NULL values allowed
+      COALESCE(original_amount, 0) as original_amount,
+      COALESCE(discount_amount, 0) as discount_amount,
+      COALESCE(total_amount, 0) as total_amount,
+      COALESCE(total_sessions, 0) as total_sessions,
+      COALESCE(per_session_amount, 0) as per_session_amount,
+      COALESCE(released_sessions, 0) as released_sessions,
+      COALESCE(carry_amount, 0) as carry_amount,
+      'active' as status
+    FROM patients 
+    WHERE package_name IS NOT NULL OR total_sessions > 0
+  `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

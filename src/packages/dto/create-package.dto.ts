@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
 
 export class CreatePackageDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   package_name: string;
 

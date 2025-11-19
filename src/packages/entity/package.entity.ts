@@ -12,7 +12,7 @@ export class PatientPackage {
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @Column()
+  @Column({ nullable: true })
   package_name: string;
 
   @Column('decimal', { 
