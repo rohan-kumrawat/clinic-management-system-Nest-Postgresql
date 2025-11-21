@@ -31,7 +31,7 @@ export class Patient {
   @Column()
   mobile: string;
   
-  @Column()
+  @Column({ nullable: true })
   package_name: string;
 
   @Column({ default: 0 })
@@ -48,6 +48,7 @@ export class Patient {
   @Column('decimal', { 
     precision: 10, 
     scale: 2,
+    nullable: true,
     transformer: new DecimalTransformer()
   })
   original_amount: number;
@@ -55,6 +56,7 @@ export class Patient {
   @Column('decimal', { 
     precision: 10, 
     scale: 2,
+    nullable: true,
     default: 0,
     transformer: new DecimalTransformer()
   })
@@ -63,16 +65,18 @@ export class Patient {
   @Column('decimal', { 
     precision: 10, 
     scale: 2, 
+    nullable: true,
     transformer: new DecimalTransformer()
   })
   total_amount: number;
   
-  @Column()
+  @Column({ nullable: true })
   total_sessions: number;
   
   @Column('decimal', { 
     precision: 10, 
     scale: 2, 
+    nullable: true,
     transformer: new DecimalTransformer()
   })
   per_session_amount: number;

@@ -2,9 +2,6 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString, IsNumber, IsEmail, Min, Max }
 import { Gender, PatientStatus, VisitType } from '../../common/enums';
 
 export class CreatePatientDto {
-  @IsOptional()
-  @IsNumber()
-  serial_no?: number;
 
   @IsNotEmpty()
   @IsString()
