@@ -26,54 +26,6 @@ export class PatientsService {
     private readonly packagesService: PackagesService,
   ) { }
 
-  // async create(patientData: CreatePatientDto, createdByUserId: number): Promise<Patient> {
-  //   try {
-  //     console.log('Received patientData:', patientData);
-  //     console.log('Created by user ID:', createdByUserId);
-
-  //     // Find the user who is creating the patient
-  //     const createdByUser = await this.usersRepository.findOne({ where: { id: createdByUserId } });
-  //     if (!createdByUser) {
-  //       throw new NotFoundException(`User with ID ${createdByUserId} not found`);
-  //     }
-
-  //     // Handle the assigned_doctor object from frontend
-  //     if (patientData.assigned_doctor && typeof patientData.assigned_doctor === 'object') {
-  //       const doctorData = patientData.assigned_doctor as any;
-  //       const doctorId = doctorData.id || doctorData.doctor_id;
-
-  //       console.log('Extracted doctorId:', doctorId);
-
-  //       if (doctorId) {
-  //         patientData.assigned_doctor = { doctor_id: doctorId } as any;
-  //       } else {
-  //         patientData.assigned_doctor = null;
-  //       }
-  //     }
-
-  //     // Agar frontend se per_session_amount nahi aaya hai toh calculate karein
-  //     if (!patientData.per_session_amount && patientData.total_sessions > 0) {
-  //       patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
-  //     }
-
-  //     console.log('Saving patientData:', patientData);
-
-  //     const patient = this.patientsRepository.create({
-  //       ...patientData,
-  //       created_by: createdByUser, // Set the created_by relationship
-  //     });
-
-  //     const savedPatient = await this.patientsRepository.save(patient);
-
-  //     console.log('Saved patient:', savedPatient);
-
-  //     return savedPatient;
-  //   } catch (error) {
-  //     console.error('Error creating patient:', error);
-  //     throw new Error('Failed to create patient. Please check your data.');
-  //   }
-  // }
-
   async create(patientData: CreatePatientDto, createdByUserId: number): Promise<Patient> {
   try {
     console.log('Received patientData:', patientData);
@@ -100,9 +52,9 @@ export class PatientsService {
     }
 
     // Agar frontend se per_session_amount nahi aaya hai toh calculate karein
-    if (!patientData.per_session_amount && patientData.total_sessions > 0) {
-      patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
-    }
+    // if (!patientData.per_session_amount && patientData.total_sessions > 0) {
+    //   patientData.per_session_amount = patientData.total_amount / patientData.total_sessions;
+    // }
 
     console.log('Saving patientData:', patientData);
 
@@ -127,7 +79,7 @@ export class PatientsService {
     const savedPatient = await this.patientsRepository.save(patient);
 
     // ✅ NEW: Create first package for patient
-    if (package_name && total_sessions > 0) {
+    if (package_name && total_sessions && total_sessions > 0) {
       await this.packagesService.create({
         package_name,
         original_amount: original_amount || 0,
@@ -140,7 +92,7 @@ export class PatientsService {
       }, savedPatient.patient_id);
     }
 
-    console.log('Saved patient with package:', savedPatient);
+    console.log('Saved patient:', savedPatient);
 
     return savedPatient;
   } catch (error) {

@@ -34,9 +34,12 @@ export class CreatePatientDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+  
+  @IsEnum(Gender)
+  gender: Gender;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   package_name: string;
 
   @IsOptional()
@@ -47,18 +50,22 @@ export class CreatePatientDto {
   @IsNumber()
   carry_amount?: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   original_amount: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   discount_amount: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   total_amount: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(1)
   total_sessions: number;
@@ -77,9 +84,6 @@ export class CreatePatientDto {
   @IsOptional()
   @IsEnum(VisitType)
   visit_type?: VisitType;
-
-  @IsEnum(Gender)
-  gender: Gender;
 
   @IsOptional()
   @IsNumber()
