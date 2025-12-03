@@ -6,11 +6,18 @@ import { Patient } from '../patients/entity/patient.entity';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment } from '../payments/entity/payment.entity';
 import { Doctor } from '../doctors/entity/doctor.entity';
+import { PatientPackage } from '../packages/entity/package.entity';
 import { PdfModule } from 'src/pdf/pdf.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Patient, Session, Payment, Doctor]),
+    TypeOrmModule.forFeature([
+      Patient, 
+      Session, 
+      Payment, 
+      Doctor,
+      PatientPackage
+    ]),
     PdfModule,
   ],
   providers: [ReportsService],

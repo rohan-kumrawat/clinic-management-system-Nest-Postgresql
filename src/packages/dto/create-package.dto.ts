@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
+import { PackageStatus } from 'src/common/enums';
 
 export class CreatePackageDto {
   @IsOptional()
@@ -42,8 +43,8 @@ export class CreatePackageDto {
   used_sessions?: number;
 
   @IsOptional()
-  @IsEnum(['active', 'completed', 'cancelled'])
-  status?: string;
+  @IsEnum(PackageStatus)
+  status?: PackageStatus;
 
   @IsOptional()
   start_date?: Date;

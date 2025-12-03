@@ -15,7 +15,6 @@ import { PackagesService } from 'src/packages/packages.service';
 import { CreatePackageDto } from 'src/packages/dto/create-package.dto';
 import { ClosePackageDto } from 'src/packages/dto/close-package.dto';
 
-
 interface AuthenticatedRequest extends Request {
   user: {
     userId: number;
@@ -23,7 +22,6 @@ interface AuthenticatedRequest extends Request {
     role: UserRole;
   };
 }
-
 
 @Controller('patients')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,75 +46,67 @@ export class PatientsController {
   }
 
   @Put(':id')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async update(
-  @Param('id') id: string,
-  @Body() updateData: UpdatePatientDto,
-  @Req() request: AuthenticatedRequest
-): Promise<Patient> {
-  try {
-    const userRole = request.user.role;
-    const userId = request.user.userId;
-    return await this.patientsService.update(+id, updateData, userRole, userId); // ✅ userId PASS KAREN
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async update(
+    @Param('id') id: string,
+    @Body() updateData: UpdatePatientDto,
+    @Req() request: AuthenticatedRequest
+  ): Promise<Patient> {
+    try {
+      const userRole = request.user.role;
+      const userId = request.user.userId;
+      return await this.patientsService.update(+id, updateData, userRole, userId);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 
+  // ✅ MODIFIED: Remove visitType and doctorId filters
   @Get()
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async findAll(
-  @Req() request: AuthenticatedRequest,
-  @Query('page', ParseIntPipe) page: number = 1,
-  @Query('limit', ParseIntPipe) limit: number = 10,
-  @Query('name') name?: string,
-  @Query('reg_no') reg_no?: string, // Naya query parameter
-  @Query('doctorId') doctorId?: number,
-  @Query('status') status?: PatientStatus,
-  @Query('visitType') visitType?: VisitType,
-  @Query('paymentStatus') paymentStatus?: PaymentStatus,
-): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
-  try {
-    const userRole = request.user.role;
-    return await this.patientsService.findAll(
-      userRole, 
-      page, 
-      limit, 
-      name, 
-      reg_no, // Naya parameter pass karein
-      doctorId, 
-      status, 
-      visitType, 
-      paymentStatus
-    );
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findAll(
+    @Req() request: AuthenticatedRequest,
+    @Query('page', ParseIntPipe) page: number = 1,
+    @Query('limit', ParseIntPipe) limit: number = 10,
+    @Query('name') name?: string,
+    @Query('reg_no') reg_no?: string,
+    @Query('status') status?: PatientStatus,
+    @Query('paymentStatus') paymentStatus?: PaymentStatus,
+  ): Promise<{ patients: Patient[], total: number, page: number, limit: number }> {
+    try {
+      const userRole = request.user.role;
+      return await this.patientsService.findAll(
+        userRole, 
+        page, 
+        limit, 
+        name, 
+        reg_no,
+        status, 
+        paymentStatus
+      );
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 
+  // ✅ MODIFIED: Remove visitType and doctorId filters
   @Get('active')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async findAllActive(
-  @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
-  @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
-  @Query('name') name?: string,
-  @Query('reg_no') reg_no?: string, // Naya query parameter
-  @Query('doctorId', new ParseIntPipe({ optional: true })) doctorId?: number,
-  @Query('visitType') visitType?: VisitType,
-  @Query('paymentStatus') paymentStatus?: PaymentStatus,
-): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
-  return this.patientsService.findAllActive(
-    page,
-    limit,
-    name,
-    reg_no, 
-    doctorId,
-    visitType,
-    paymentStatus,
-  );
-}
-
-
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async findAllActive(
+    @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
+    @Query('name') name?: string,
+    @Query('reg_no') reg_no?: string,
+    @Query('paymentStatus') paymentStatus?: PaymentStatus,
+  ): Promise<{ patients: Patient[]; total: number; page: number; limit: number }> {
+    return this.patientsService.findAllActive(
+      page,
+      limit,
+      name,
+      reg_no,
+      paymentStatus,
+    );
+  }
 
   @Get('stats')
   @Roles(UserRole.OWNER)
@@ -142,8 +132,6 @@ async findAllActive(
     }
   }
 
-  
-
   @Delete(':id')
   @Roles(UserRole.OWNER)
   async remove(@Param('id') id: string): Promise<{ message: string }> {
@@ -157,59 +145,54 @@ async findAllActive(
     }
   }
 
-  // For managing patient packages
-
- @Get(':id/packages')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async getPatientPackages(
-  @Param('id', ParseIntPipe) id: number
-) {
-  try {
-    return await this.patientsService.getPatientPackages(id);
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  // ✅ Package management endpoints
+  @Get(':id/packages')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async getPatientPackages(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.patientsService.getPatientPackages(id);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 
-@Get(':id/active-package')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async getActivePatientPackage(
-  @Param('id', ParseIntPipe) id: number
-) {
-  try {
-    return await this.patientsService.getActivePatientPackage(id);
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  @Get(':id/active-package')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async getActivePatientPackage(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await this.patientsService.getActivePatientPackage(id);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 
-@Post(':id/packages')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async addPackageToPatient(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() createPackageDto: CreatePackageDto,
-  @Req() request: AuthenticatedRequest
-) {
-  try {
-    const userId = request.user.userId;
-    return await this.patientsService.addPackageToPatient(id, createPackageDto, userId);
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  @Post(':id/packages')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async addPackageToPatient(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() createPackageDto: CreatePackageDto,
+    @Req() request: AuthenticatedRequest
+  ) {
+    try {
+      const userId = request.user.userId;
+      return await this.patientsService.addPackageToPatient(id, createPackageDto, userId);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 
-@Put('packages/:packageId/close')
-@Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-async closePatientPackage(
-  @Param('packageId', ParseIntPipe) packageId: number,
-  @Body() closePackageDto: ClosePackageDto,
-  @Req() request: AuthenticatedRequest
-) {
-  try {
-    const userId = request.user.userId;
-    return await this.patientsService.closePatientPackage(packageId, closePackageDto, userId);
-  } catch (error) {
-    throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+  @Put('packages/:packageId/close')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  async closePatientPackage(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() closePackageDto: ClosePackageDto,
+    @Req() request: AuthenticatedRequest
+  ) {
+    try {
+      const userId = request.user.userId;
+      return await this.patientsService.closePatientPackage(packageId, closePackageDto, userId);
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 }

@@ -1,7 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Patient } from '../../patients/entity/patient.entity';
 import { User } from '../../auth/entity/user.entity';
+import { Doctor } from '../../doctors/entity/doctor.entity';
 import { DecimalTransformer } from 'src/common/decimal.transformer';
+import { Session } from '../../sessions/entity/session.entity';
+import { PackageStatus } from 'src/common/enums';
 
 @Entity('patient_packages')
 export class PatientPackage {
@@ -12,7 +15,10 @@ export class PatientPackage {
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @Column({ nullable: true })
+  @Column()
+  patient_id: number;
+
+  @Column({ type: 'varchar', length: 255 })
   package_name: string;
 
   @Column('decimal', { 
@@ -37,7 +43,7 @@ export class PatientPackage {
   })
   total_amount: number;
 
-  @Column()
+  @Column({ type: 'int' })
   total_sessions: number;
 
   @Column('decimal', { 
@@ -47,7 +53,7 @@ export class PatientPackage {
   })
   per_session_amount: number;
 
-  @Column({ default: 0 })
+  @Column({ type: 'int', default: 0 })
   released_sessions: number;
 
   @Column('decimal', { 
@@ -58,15 +64,29 @@ export class PatientPackage {
   })
   carry_amount: number;
 
-  @Column({ default: 0 })
+  @Column({ type: 'int', default: 0 })
   used_sessions: number;
 
   @Column({
+      type: 'enum',
+      enum: PackageStatus,
+      default: PackageStatus.ACTIVE,
+    })
+    status: PackageStatus;
+
+  @ManyToOne(() => Doctor, { nullable: true })
+  @JoinColumn({ name: 'assigned_doctor_id' })
+  assigned_doctor: Doctor;
+
+  @Column({ nullable: true })
+  assigned_doctor_id: number;
+
+  @Column({
     type: 'enum',
-    enum: ['active', 'completed', 'cancelled'],
-    default: 'active'
+    enum: ['clinic', 'home'],
+    default: 'clinic'
   })
-  status: string;
+  visit_type: 'clinic' | 'home';
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   start_date: Date;
@@ -81,6 +101,12 @@ export class PatientPackage {
   @JoinColumn({ name: 'closed_by' })
   closed_by: User;
 
+  @Column({ nullable: true })
+  closed_by_id: number;
+
+  @OneToMany(() => Session, session => session.package)
+  sessions: Session[];
+
   @CreateDateColumn()
   created_at: Date;
 
@@ -90,4 +116,6 @@ export class PatientPackage {
   // Virtual fields
   remaining_sessions: number;
   remaining_release_sessions: number;
+  paid_amount: number;
+  pending_amount: number;
 }

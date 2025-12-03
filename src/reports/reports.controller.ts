@@ -7,7 +7,6 @@ import { UserRole } from '../auth/entity/user.entity';
 import type { Response } from 'express';
 import { PdfService } from 'src/pdf/pdf.service';
 
-
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ReportsController {
@@ -26,14 +25,26 @@ export class ReportsController {
   @Roles(UserRole.OWNER)
   async getDoctorWiseStats() {
     return this.reportsService.getDoctorWiseStats();
-}
+  }
 
-  // @Get('patient-history/:id')
-  // @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
-  // getPatientHistory(@Param('id', ParseIntPipe) patientId: number) {
-  //   return this.reportsService.getPatientHistory(patientId);
-  // }
+  // ✅ ENABLED: Patient History with Packages
+  @Get('patient-history/:id')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  getPatientHistory(@Param('id', ParseIntPipe) patientId: number) {
+    return this.reportsService.getPatientHistory(patientId);
+  }
 
+  @Get('patient-package-history/:id')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  getPatientPackageHistory(@Param('id', ParseIntPipe) patientId: number) {
+    return this.reportsService.getPatientPackageHistory(patientId);
+  }
+
+  @Get('package-analytics')
+  @Roles(UserRole.OWNER)
+  getPackageAnalytics() {
+    return this.reportsService.getPackageAnalytics();
+  }
 
   // Financial summary endpoint
   @Get('financial-summary')
@@ -55,7 +66,7 @@ export class ReportsController {
     return this.reportsService.getFinancialSummary(start, end);
   }
 
-    // NEW: Monthly Financial Report API
+  // NEW: Monthly Financial Report API
   @Get('monthly-financial')
   @Roles(UserRole.OWNER)
   getMonthlyFinancialReport(
@@ -97,23 +108,39 @@ export class ReportsController {
   }
 
   @Get('doctor-wise/pdf')
-    @Roles(UserRole.OWNER)
-    @Header('Content-Type', 'application/pdf')
-    @Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
-    async getDoctorWisePdf(@Res() res: Response) {
-        try {
-            // ✅ No date parameters needed - simple all-time stats
-            const data = await this.reportsService.getDoctorWiseStats();
-            const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data);
-            res.send(pdfBuffer);
-        } catch (error) {
-            console.error('PDF Generation Error:', error);
-            res.status(500).json({ 
-                message: 'Failed to generate PDF report',
-                error: error.message 
-            });
-        }
+  @Roles(UserRole.OWNER)
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename="doctor-performance.pdf"')
+  async getDoctorWisePdf(@Res() res: Response) {
+    try {
+      const data = await this.reportsService.getDoctorWiseStats();
+      const pdfBuffer = await this.pdfService.generateDoctorWiseReport(data);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error('PDF Generation Error:', error);
+      res.status(500).json({ 
+        message: 'Failed to generate PDF report',
+        error: error.message 
+      });
     }
+  }
+
+  @Get('patient-history/:id/pdf')
+  @Roles(UserRole.OWNER)
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename="patient-history.pdf"')
+  async getPatientHistoryPdf(
+    @Param('id', ParseIntPipe) patientId: number,
+    @Res() res: Response
+  ) {
+    try {
+      const data = await this.reportsService.getPatientHistory(patientId);
+      const pdfBuffer = await this.pdfService.generatePatientHistoryReport(data);
+      res.send(pdfBuffer);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to generate PDF report' });
+    }
+  }
 
   @Get('financial-summary/pdf')
   @Roles(UserRole.OWNER)
@@ -188,38 +215,47 @@ export class ReportsController {
     }
   }
 
-
   @Get('verify-doctor/:doctorId')
-async verifyDoctorStats(@Param('doctorId') doctorId: number) {
+  async verifyDoctorStats(@Param('doctorId') doctorId: number) {
     return this.reportsService.verifyDoctorStats(doctorId);
-}
-
-
-@Get('debug/doctor-stats/:doctorId')
-@Roles(UserRole.OWNER)
-async debugDoctorStats(@Param('doctorId', ParseIntPipe) doctorId: number) {
-  return this.reportsService.verifyDoctorStats(doctorId);
-}
-
-@Get('debug/sessions')
-@Roles(UserRole.OWNER)
-async debugSessions() {
-  try {
-    const sessions = await this.reportsService.getSessionsDebug();
-    return { success: true, data: sessions };
-  } catch (error) {
-    throw new BadRequestException(error.message);
   }
-}
 
-@Get('debug/payments')
-@Roles(UserRole.OWNER)  
-async debugPayments() {
-  try {
-    const payments = await this.reportsService.getPaymentsDebug();
-    return { success: true, data: payments };
-  } catch (error) {
-    throw new BadRequestException(error.message);
+  @Get('debug/doctor-stats/:doctorId')
+  @Roles(UserRole.OWNER)
+  async debugDoctorStats(@Param('doctorId', ParseIntPipe) doctorId: number) {
+    return this.reportsService.verifyDoctorStats(doctorId);
   }
-}
+
+  @Get('debug/sessions')
+  @Roles(UserRole.OWNER)
+  async debugSessions() {
+    try {
+      const sessions = await this.reportsService.getSessionsDebug();
+      return { success: true, data: sessions };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @Get('debug/payments')
+  @Roles(UserRole.OWNER)  
+  async debugPayments() {
+    try {
+      const payments = await this.reportsService.getPaymentsDebug();
+      return { success: true, data: payments };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @Get('debug/packages')
+  @Roles(UserRole.OWNER)
+  async debugPackages() {
+    try {
+      const packages = await this.reportsService.getPackageAnalytics();
+      return { success: true, data: packages };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
 }

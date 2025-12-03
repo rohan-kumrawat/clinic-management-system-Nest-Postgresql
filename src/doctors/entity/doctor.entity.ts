@@ -1,8 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
-import { Patient } from '../../patients/entity/patient.entity';
 import { Session } from '../../sessions/entity/session.entity';
-import { Exclude } from 'class-transformer';
+import { PatientPackage } from '../../packages/entity/package.entity';
+//import { Exclude } from 'class-transformer';
 
 @Entity('doctors')
 export class Doctor {
@@ -47,11 +47,15 @@ export class Doctor {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @OneToMany(() => Patient, patient => patient.assigned_doctor)
-  patients: Patient[];
-
   @OneToMany(() => Session, session => session.doctor)
   sessions: Session[];
 
+  @OneToMany(() => PatientPackage, pkg => pkg.assigned_doctor)
+  packages: PatientPackage[];
+
+  // Add these properties for statistical data (not stored in DB)
   active_patients_count?: number;
+  total_packages_count?: number;
+  active_packages_count?: number;
+  completed_packages_count?: number;
 }

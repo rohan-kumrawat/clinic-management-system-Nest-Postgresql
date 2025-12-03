@@ -1,8 +1,9 @@
 import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { PackageStatus } from 'src/common/enums';
 
 export class ClosePackageDto {
-  @IsEnum(['completed', 'cancelled'])
-  status: 'completed' | 'cancelled';
+  @IsEnum(PackageStatus)
+  status: PackageStatus;
 
   @IsOptional()
   @IsString()

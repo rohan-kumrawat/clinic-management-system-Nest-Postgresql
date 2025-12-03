@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.gaurd';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/entity/user.entity';
-import { request } from 'express';
+
 
 @Controller('doctors')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,6 +45,12 @@ export class DoctorsController {
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
   findOne(@Param('id') id: string): Promise<Doctor> {
     return this.doctorsService.findOne(+id);
+  }
+
+  @Get(':id/statistics')
+  @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  getStatistics(@Param('id') id: string): Promise<any> {
+    return this.doctorsService.getDoctorStatistics(+id);
   }
 
   @Put(':id')

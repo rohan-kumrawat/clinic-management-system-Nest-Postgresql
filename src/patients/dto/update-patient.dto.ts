@@ -1,9 +1,14 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreatePatientDto } from './create-patient.dto';
-import { IsEnum, IsOptional, IsString, IsNumber, Min } from 'class-validator';
-import { Gender, PatientStatus, VisitType } from '../../common/enums';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Gender, PatientStatus } from '../../common/enums';
 
 export class UpdatePatientDto extends PartialType(CreatePatientDto) {
+  
+  @IsOptional()
+  @IsString()
+  reg_no?: string;
+
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
@@ -11,19 +16,6 @@ export class UpdatePatientDto extends PartialType(CreatePatientDto) {
   @IsOptional()
   @IsEnum(PatientStatus)
   status?: PatientStatus;
-
-  @IsOptional()
-  @IsEnum(VisitType)
-  visit_type?: VisitType;
-
-  @IsOptional()
-  @IsString()
-  reg_no?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  per_session_amount?: number;
 
   @IsOptional()
   @IsString()

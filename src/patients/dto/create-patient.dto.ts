@@ -16,74 +16,28 @@ export class CreatePatientDto {
   @Max(150)
   age: number;
 
-  @IsString()
-  @IsOptional()
-  remark?: string;
-
-  @IsOptional()
-  @IsString()
-  referred_dr?: string;
-
+  
   @IsString()
   @IsNotEmpty()
   mobile: string;
-
+  
   @IsOptional()
   @IsEmail()
   email?: string;
   
   @IsEnum(Gender)
   gender: Gender;
-
+  
+  @IsOptional()
   @IsString()
-  @IsOptional()
-  package_name: string;
+  remark?: string;
 
   @IsOptional()
-  @IsNumber()
-  released_sessions?: number;
-
-  @IsOptional()
-  @IsNumber()
-  carry_amount?: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  original_amount: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  discount_amount: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  total_amount: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  total_sessions: number;
+  @IsString()
+  referred_dr?: string;
 
   @IsOptional()
   @IsString()
   attachment?: string;
 
-  @IsOptional()
-  assigned_doctor?: any;
-
-  @IsOptional()
-  @IsEnum(PatientStatus)
-  status?: PatientStatus;
-
-  @IsOptional()
-  @IsEnum(VisitType)
-  visit_type?: VisitType;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  per_session_amount?: number;
 }

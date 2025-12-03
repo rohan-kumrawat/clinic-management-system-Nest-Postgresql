@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsNumber, IsString } from 'class-validator';
-import { PatientStatus, VisitType, PaymentStatus } from '../../common/enums';
+import { PatientStatus, PaymentStatus } from '../../common/enums';
 import { Type } from 'class-transformer';
 
 export class FilterPatientDto {
@@ -8,17 +8,12 @@ export class FilterPatientDto {
   name?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  doctorId?: number;
+  @IsString()
+  reg_no?: string;
 
   @IsOptional()
   @IsEnum(PatientStatus)
   status?: PatientStatus;
-
-  @IsOptional()
-  @IsEnum(VisitType)
-  visit_type?: VisitType;
 
   @IsOptional()
   @IsEnum(PaymentStatus)

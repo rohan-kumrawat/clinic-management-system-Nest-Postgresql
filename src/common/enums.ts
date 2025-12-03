@@ -2,8 +2,14 @@
 
 export enum PatientStatus {
   ACTIVE = 'active',
-  INACTIVE = 'inactive',
+  NO_PACKAGE = 'noPackage',
   DISCHARGED = 'discharged',
+}
+
+export enum PackageStatus {
+  ACTIVE = 'active',
+  COMPLETED = 'completed',
+  CLOSED = 'Closed',
 }
 
 // this new enum for Visit Type
