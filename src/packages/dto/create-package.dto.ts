@@ -6,6 +6,10 @@ export class CreatePackageDto {
   @IsString()
   package_name: string;
 
+  @IsOptional()
+  @IsString()
+  assigned_doctor_id: string;
+
   @IsNumber()
   @Min(0)
   original_amount: number;
