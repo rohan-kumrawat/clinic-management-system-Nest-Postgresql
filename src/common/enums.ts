@@ -9,7 +9,7 @@ export enum PatientStatus {
 export enum PackageStatus {
   ACTIVE = 'active',
   COMPLETED = 'completed',
-  CLOSED = 'Closed',
+  CLOSED = 'closed',
 }
 
 // this new enum for Visit Type

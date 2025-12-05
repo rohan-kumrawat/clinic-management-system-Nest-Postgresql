@@ -7,7 +7,7 @@ import { UpdatePackageDto } from './dto/update-package.dto';
 import { ClosePackageDto } from './dto/close-package.dto';
 import { Patient } from '../patients/entity/patient.entity';
 import { User } from '../auth/entity/user.entity';
-import { PackageStatus, PatientStatus } from '../common/enums';
+import { PackageStatus, PatientStatus, VisitType } from '../common/enums';
 
 @Injectable()
 export class PackagesService {
@@ -29,17 +29,33 @@ export class PackagesService {
       throw new NotFoundException(`Patient with ID ${patientId} not found`);
     }
 
-    // Calculate derived fields
-    const total_amount = createPackageDto.original_amount - (createPackageDto.discount_amount || 0);
-    const per_session_amount = total_amount / createPackageDto.total_sessions;
+    // Calculate derived fields if not provided
+    const total_amount = createPackageDto.total_amount || 
+                        (createPackageDto.original_amount - (createPackageDto.discount_amount || 0));
+    
+    const per_session_amount = createPackageDto.per_session_amount || 
+                              (total_amount / createPackageDto.total_sessions);
+
+    // Validate assigned doctor if provided
+    if (createPackageDto.assigned_doctor_id) {
+      // Note: You might want to check if doctor exists
+      // For now, we'll just allow the foreign key constraint to handle it
+    }
+
+    // Set default visit type if not provided
+    const visit_type = createPackageDto.visit_type || VisitType.CLINIC;
 
     const patientPackage = this.packagesRepository.create({
       ...createPackageDto,
       patient_id: patientId,
       total_amount,
       per_session_amount,
-      status: PackageStatus.ACTIVE,
-      start_date: new Date(),
+      visit_type,
+      status: createPackageDto.status || PackageStatus.ACTIVE,
+      start_date: createPackageDto.start_date || new Date(),
+      released_sessions: createPackageDto.released_sessions || 0,
+      carry_amount: createPackageDto.carry_amount || 0,
+      used_sessions: createPackageDto.used_sessions || 0,
     });
 
     const savedPackage = await this.packagesRepository.save(patientPackage);

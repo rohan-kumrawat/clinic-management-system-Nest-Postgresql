@@ -4,7 +4,7 @@ import { User } from '../../auth/entity/user.entity';
 import { Doctor } from '../../doctors/entity/doctor.entity';
 import { DecimalTransformer } from 'src/common/decimal.transformer';
 import { Session } from '../../sessions/entity/session.entity';
-import { PackageStatus } from 'src/common/enums';
+import { PackageStatus, VisitType } from 'src/common/enums';
 
 @Entity('patient_packages')
 export class PatientPackage {
@@ -68,11 +68,11 @@ export class PatientPackage {
   used_sessions: number;
 
   @Column({
-      type: 'enum',
-      enum: PackageStatus,
-      default: PackageStatus.ACTIVE,
-    })
-    status: PackageStatus;
+    type: 'enum',
+    enum: PackageStatus,
+    default: PackageStatus.ACTIVE,
+  })
+  status: PackageStatus;
 
   @ManyToOne(() => Doctor, { nullable: true })
   @JoinColumn({ name: 'assigned_doctor_id' })
@@ -83,10 +83,10 @@ export class PatientPackage {
 
   @Column({
     type: 'enum',
-    enum: ['clinic', 'home'],
-    default: 'clinic'
+    enum: VisitType,
+    default: VisitType.CLINIC
   })
-  visit_type: 'clinic' | 'home';
+  visit_type: VisitType;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   start_date: Date;
