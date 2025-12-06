@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe, BadRequestException, DefaultValuePipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req, UseInterceptors, UploadedFile, HttpException, HttpStatus, NotFoundException, Query, ParseIntPipe, BadRequestException, DefaultValuePipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
 import { PatientsService } from './patients.service';
 import { Patient } from './entity/patient.entity';
@@ -25,6 +25,7 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('patients')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@UseInterceptors(ClassSerializerInterceptor)
 export class PatientsController {
   constructor(
     private readonly patientsService: PatientsService,
@@ -33,6 +34,7 @@ export class PatientsController {
 
   @Post()
   @Roles(UserRole.RECEPTIONIST, UserRole.OWNER)
+  @UseInterceptors(ClassSerializerInterceptor)
   async create(
     @Body() patientData: CreatePatientDto,
     @Req() request: AuthenticatedRequest

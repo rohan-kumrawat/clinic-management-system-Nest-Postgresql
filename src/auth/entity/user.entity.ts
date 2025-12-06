@@ -25,6 +25,7 @@ export class User {
 
   @Column()
   @IsNotEmpty()
+  @Exclude()
   password: string;
 
   @Column()

@@ -76,12 +76,13 @@ export class PatientsService {
     }
   }
 
-  async findOne(id: number, userRole: UserRole | null = null): Promise<any> {
+
+  async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       let queryBuilder = this.patientsRepository
         .createQueryBuilder('patient')
-        .leftJoin('patient.created_by', 'createdBy')
-        .addSelect(['createdBy.id', 'createdBy.name', 'createdBy.role'])
+        .leftJoinAndSelect('patient.created_by', 'createdBy')
+        .leftJoinAndSelect('patient.updated_by', 'updatedBy')
         .leftJoinAndSelect('patient.packages', 'packages')
         .leftJoin('packages.assigned_doctor', 'packageDoctor')
         .addSelect(['packageDoctor.doctor_id', 'packageDoctor.name'])
@@ -97,6 +98,7 @@ export class PatientsService {
         throw new NotFoundException(`Patient with ID ${id} not found`);
       }
 
+      // Calculate statistics
       const sessionCountResult = await this.patientsRepository.manager.query(
         `SELECT COUNT(*) as count FROM sessions WHERE patient_id = $1`,
         [id]
@@ -105,8 +107,8 @@ export class PatientsService {
 
       const paidResult = await this.patientsRepository.manager.query(
         `SELECT COALESCE(SUM(amount_paid), 0) as total_paid 
-         FROM payments 
-         WHERE patient_id = $1`,
+        FROM payments 
+        WHERE patient_id = $1`,
         [id]
       );
       const paidAmount = parseFloat(paidResult[0].total_paid);
@@ -126,53 +128,39 @@ export class PatientsService {
             activePackage = pkg;
           }
         });
-      }
+    }
 
-      const remainingReleaseSessions = Math.max(totalReleasedSessions - totalUsedSessions, 0);
+    const remainingReleaseSessions = Math.max(totalReleasedSessions - totalUsedSessions, 0);
 
-      let paymentStatus = PaymentStatus.UNPAID;
-      if (paidAmount === 0) {
-        paymentStatus = PaymentStatus.UNPAID;
-      } else if (paidAmount < totalPackageAmount) {
-        paymentStatus = PaymentStatus.PARTIALLY_PAID;
-      } else {
-        paymentStatus = PaymentStatus.FULLY_PAID;
-      }
+    let paymentStatus = PaymentStatus.UNPAID;
+    if (paidAmount === 0) {
+      paymentStatus = PaymentStatus.UNPAID;
+    } else if (paidAmount < totalPackageAmount) {
+      paymentStatus = PaymentStatus.PARTIALLY_PAID;
+    } else {
+      paymentStatus = PaymentStatus.FULLY_PAID;
+    }
 
-      const currentDoctor = activePackage && (activePackage as any).assigned_doctor 
+    const currentDoctor = activePackage && (activePackage as any).assigned_doctor 
       ? (activePackage as any).assigned_doctor
       : null;
 
-      const formattedCreatedBy = patient.created_by ? {
-        id: patient.created_by.id,
-        name: patient.created_by.name,
-        role: patient.created_by.role
-      } : null;
+    // Set virtual fields on the Patient entity
+    patient.attended_sessions_count = attendedSessionsCount;
+    patient.paid_amount = paidAmount;
+    patient.total_package_amount = totalPackageAmount;
+    patient.total_released_sessions = totalReleasedSessions;
+    patient.total_used_sessions = totalUsedSessions;
+    patient.remaining_released_sessions = remainingReleaseSessions;
+    patient.payment_status = paymentStatus;
+    patient.current_doctor = currentDoctor;
+    patient.active_package = activePackage;
 
-      const formattedUpdatedBy = patient.updated_by ? {
-        id: patient.updated_by.id,
-        name: patient.updated_by.name,
-        role: patient.updated_by.role
-      } : null;
-
-      return {
-        ...patient,
-        attended_sessions_count: attendedSessionsCount,
-        paid_amount: paidAmount,
-        total_package_amount: totalPackageAmount,
-        total_released_sessions: totalReleasedSessions,
-        total_used_sessions: totalUsedSessions,
-        remaining_release_sessions: remainingReleaseSessions,
-        payment_status: paymentStatus,
-        created_by: formattedCreatedBy,
-        updated_by: formattedUpdatedBy,
-        current_doctor: currentDoctor,
-        active_package: activePackage
-      };
-    } catch (error) {
-      console.error('Error fetching patient:', error);
-      throw new Error('Failed to fetch patient');
-    }
+    return patient;
+  } catch (error) {
+    console.error('Error fetching patient:', error);
+    throw new Error('Failed to fetch patient');
+  }
   }
 
   private async updatePatientStatus(patientId: number): Promise<void> {

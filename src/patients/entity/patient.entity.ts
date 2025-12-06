@@ -1,10 +1,10 @@
-// src/patients/entity/patient.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
 import { Session } from '../../sessions/entity/session.entity';
 import { Payment } from '../../payments/entity/payment.entity';
 import { PatientStatus, Gender } from '../../common/enums';
 import { User } from 'src/auth/entity/user.entity';
 import { PatientPackage } from '../../packages/entity/package.entity';
+import { Exclude, Transform } from 'class-transformer';
 
 @Entity('patients')
 export class Patient {
@@ -29,16 +29,35 @@ export class Patient {
   @Column()
   mobile: string;
   
-  
   @Column({ nullable: true })
   attachment: string;
   
   @ManyToOne(() => User, (user) => user.patientsCreated)
   @JoinColumn({ name: 'created_by' })
+  @Transform(({ value }) => {
+    // Transform user object to only include safe fields
+    if (!value) return null;
+    return {
+      id: value.id,
+      name: value.name,
+      email: value.email,
+      role: value.role
+    };
+  })
   created_by: User;
   
   @ManyToOne(() => User, (user) => user.patientsUpdated, { nullable: true })
   @JoinColumn({ name: 'updated_by' })
+  @Transform(({ value }) => {
+    // Transform user object to only include safe fields
+    if (!value) return null;
+    return {
+      id: value.id,
+      name: value.name,
+      email: value.email,
+      role: value.role
+    };
+  })
   updated_by: User;
   
   @OneToMany(() => Session, session => session.patient)
@@ -57,28 +76,24 @@ export class Patient {
   })
   status: PatientStatus;
 
-  
   @Column({
     type: 'enum',
     enum: Gender
   })
   gender: Gender;
   
-  
-  // For multiple images/reports:
   @Column({ type: 'jsonb', nullable: true })
   reports: Array<{
-    id: string;  // Unique identifier for each report
+    id: string;
     url: string;
     public_id: string;
     filename: string;
     uploaded_at: Date;
     description?: string;
-    file_size?: number; // in bytes
-    mime_type?: string; // e.g., 'image/png', 'application/pdf'
+    file_size?: number;
+    mime_type?: string;
     file_type: string;
   }>;
-  
   
   @CreateDateColumn()
   created_at: Date;
@@ -96,5 +111,4 @@ export class Patient {
   total_released_sessions: number;
   total_used_sessions: number;
   active_package: any;
-  
 }
