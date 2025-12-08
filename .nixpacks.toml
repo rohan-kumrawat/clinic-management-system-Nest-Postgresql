@@ -1,0 +1,8 @@
+[phases.setup]
+cmds = ["npm ci --omit=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node dist/main.js"

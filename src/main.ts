@@ -1,78 +1,65 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { isProduction, getDatabaseConfig } from './utils/environment.util';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import compression from 'compression';
 
-
-// ✅ Only load .env file in development
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config();
-}
+// ✅ Load .env file
+dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // enable global validation
+  // Compression middleware
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+  }));
+
+  // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
-    transform: true,
-  }));
-
-  // Enable compression middleware - Add this at the top
-  app.use(compression({
-    level: 6, // Optimal compression level (1-9)
-    threshold: 1024, // Compress responses larger than 1KB
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) {
-        return false;
-      }
-      return compression.filter(req, res);
-    }
-  }));
-
-   // Enable class-transformer globally
-  app.useGlobalPipes(new ValidationPipe({
     transform: true,
     transformOptions: {
       enableImplicitConversion: true,
     },
   }));
   
-  // Environment info log
-  console.log(`Environment: ${isProduction() ? 'Production' : 'Development'}`);
-  console.log(getDatabaseConfig());
+  // Environment info
+  console.log('=== APPLICATION STARTUP ===');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('PORT:', process.env.PORT);
+  console.log('DATABASE_URL present:', !!process.env.DATABASE_URL);
   
-  // Allowed origins
+  // CORS Configuration
   const allowedOrigins = [
     'http://localhost:3000',
-    'http://localhost:3001', 
+    'http://localhost:3001',
     'http://localhost:8080',
     'http://localhost:5173',
     'https://physiodash-hub.vercel.app',
     process.env.FRONTEND_URL,
-  ].filter(origin => origin && origin.trim() !== '');
+    ...(process.env.CORS_ORIGIN === '*' ? ['*'] : [process.env.CORS_ORIGIN]).filter(Boolean)
+  ];
 
-  // Enable CORS
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: function (origin, callback) {
+      // Railway पर health checks के लिए allow
       if (!origin) {
         return callback(null, true);
       }
       
-      if (allowedOrigins.some(allowedOrigin => {
-        return origin === allowedOrigin || 
-               origin.startsWith(allowedOrigin + '/') ||
-               (allowedOrigin === 'http://localhost:3000' && origin.startsWith('http://localhost:3000/'));
-      })) {
+      if (process.env.NODE_ENV === 'production' && process.env.CORS_ORIGIN === '*') {
         return callback(null, true);
       }
       
-      const msg = `CORS policy: ${origin} not allowed`;
-      console.warn(msg);
-      return callback(new Error(msg), false);
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
@@ -81,10 +68,13 @@ async function bootstrap() {
     optionsSuccessStatus: 204
   });
   
+  // Railway port binding - 0.0.0.0 is important
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log('Compression middleware enabled for better performance');
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`✅ Application is running on: http://0.0.0.0:${port}`);
+  console.log(`🌍 Health check: http://0.0.0.0:${port}/health`);
+  console.log('🚀 Compression middleware enabled');
 }
 
 bootstrap();
