@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { isProduction, getDatabaseConfig } from './utils/environment.util';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import * as dotenv from 'dotenv';
 import compression from 'compression';
+
 
 // ✅ Only load .env file in development
 if (process.env.NODE_ENV !== 'production') {

@@ -10,25 +10,24 @@ const commonConfig: Partial<TypeOrmModuleOptions> = {
     max: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
     idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
     connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000'),
-    ssl: process.env.NODE_ENV === 'production' || process.env.DB_SSL === 'true' ? { 
-      rejectUnauthorized: false 
-    } : false,
   },
 };
 
-// Production configuration - DATABASE_URL ya individual variables se
+// Production configuration
 const productionConfig: TypeOrmModuleOptions = {
   ...commonConfig,
   ...(process.env.DATABASE_URL ? 
     { 
-      url: process.env.DATABASE_URL 
+      url: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
     } : 
     {
-      host: process.env.DB_HOST,
+      host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
+      username: process.env.DB_USERNAME || 'postgres',
+      password: process.env.DB_PASSWORD || 'password',
+      database: process.env.DB_NAME || 'clinic_management',
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     }
   ),
 };
@@ -41,10 +40,10 @@ const localConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME || 'clinic_user',
   password: process.env.DB_PASSWORD || 'password',
   database: process.env.DB_NAME || 'clinic_management',
-  dropSchema: process.env.NODE_ENV === 'development', // Only in development
+  ssl: false,
 };
 
-// Environment detect karke configuration choose karein
-export const databaseConfig = (process.env.NODE_ENV === 'production' || process.env.DB_HOST) 
+// ✅ Export the configuration object
+export const databaseConfig: TypeOrmModuleOptions = (process.env.NODE_ENV === 'production' || process.env.DB_HOST) 
   ? productionConfig 
   : localConfig;

@@ -16,7 +16,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { SeedService } from './seed/seed.service';
 import { User } from './auth/entity/user.entity';
 import { PackagesModule } from './packages/packages.module';
-
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -50,8 +50,8 @@ import { PackagesModule } from './packages/packages.module';
     PaymentsModule,
     ReportsModule,
     PackagesModule,
+    HealthModule,
   ],
   providers: [SeedService],
 })
 export class AppModule {}
-
