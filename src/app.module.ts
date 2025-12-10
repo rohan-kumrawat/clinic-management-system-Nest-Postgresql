@@ -5,7 +5,6 @@ import { PassportModule } from '@nestjs/passport';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
-import { databaseConfig } from './config/database.config';
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';
 import { DoctorsModule } from './doctors/doctors.module';
@@ -17,6 +16,7 @@ import { SeedService } from './seed/seed.service';
 import { User } from './auth/entity/user.entity';
 import { PackagesModule } from './packages/packages.module';
 import { HealthModule } from './health/health.module';
+import { databaseConfig } from './config/database.config';
 
 @Module({
   imports: [

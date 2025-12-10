@@ -1,35 +1,39 @@
-import { DataSource } from 'typeorm';
-import { config } from 'dotenv';
+import 'reflect-metadata';
+import { DataSource, DataSourceOptions } from 'typeorm';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
-config();
+const isProduction = process.env.NODE_ENV === 'production';
 
-// TypeORM CLI ke liye data source
-const AppDataSource = new DataSource({
-  type: "postgres",
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USERNAME || 'clinic_user',
-  password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'clinic_management',
+const common: Partial<DataSourceOptions> = {
+  type: 'postgres',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../migrations/*.ts'],
-  migrationsTableName: 'migrations',
-  //synchronize: process.env.NODE_ENV !== 'production', // DEVELOPMENT MEIN TRUE
-  synchronize:true,
-  logging: process.env.NODE_ENV === 'development',
-  
-  // Connection pooling settings
-  extra: {
-    max: parseInt(process.env.DB_MAX_CONNECTIONS || '20'),
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '60000'),
-    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '10000'),
-    
-    // SSL Configuration
-    ssl: process.env.NODE_ENV === 'production' || process.env.DB_SSL === 'true' ? { 
-      rejectUnauthorized: false 
-    } : false,
-  },
-});
+  migrations: [__dirname + '/../migrations/*{.ts,.js}'],
+  logging: false,
+};
 
-export default AppDataSource;
+let dataSourceOptions: DataSourceOptions;
+
+if (process.env.DATABASE_URL) {
+  dataSourceOptions = {
+    ...common,
+    // DATABASE_URL has highest priority
+    url: process.env.DATABASE_URL,
+    // SSL for hosted DBs. In prod, keep rejectUnauthorized false to avoid cert issues.
+    ssl: isProduction ? { rejectUnauthorized: false } : undefined,
+    synchronize: false,
+  } as DataSourceOptions;
+} else {
+  dataSourceOptions = {
+    ...common,
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'clinic_management',
+    synchronize: process.env.NODE_ENV !== 'production',
+  } as DataSourceOptions;
+}
+
+export const AppDataSource = new DataSource(dataSourceOptions);
 
