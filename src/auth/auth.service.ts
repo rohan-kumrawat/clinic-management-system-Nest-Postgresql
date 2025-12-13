@@ -205,7 +205,7 @@ async forgotAdminPassword(email: string): Promise<{ success: boolean; message: s
     });
 
     // Send OTP via email
-    const emailSent = await this.emailService.sendOTP(email, otp);
+    const emailSent = await this.emailService.sendOtpEmail(email, otp);
 
     if (emailSent) {
       return { success: true, message: 'OTP sent to your email' };
