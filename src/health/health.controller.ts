@@ -6,8 +6,6 @@ export class HealthController {
   health() {
     return {
       status: 'ok',
-      service: 'clinic-management-backend',
-      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
     };
   }
