@@ -13,5 +13,8 @@ export default async function databaseConfig(
     autoLoadEntities: true,
     synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
     logging: configService.get('DB_LOGGING') === 'true',
+    retryAttempts: 3,
+    retryDelay: 2000,
+
   };
 }
