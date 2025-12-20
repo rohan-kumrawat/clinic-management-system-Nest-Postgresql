@@ -9,12 +9,12 @@ export default async function databaseConfig(
   return {
     type: 'postgres',
     url: configService.get<string>('DATABASE_URL'),
-    ssl: isProd ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
     autoLoadEntities: true,
-    synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
-    logging: configService.get('DB_LOGGING') === 'true',
-    retryAttempts: 3,
-    retryDelay: 2000,
-
-  };
+    synchronize: false,
+    logging: true,
+    retryAttempts: 0,
+  //   retryDelay: 3000,
+  //   connectTimeoutMS: 10000,
+   };
 }

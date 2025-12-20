@@ -13,7 +13,7 @@ async function bootstrap() {
   // IMPORTANT: Railway requires 0.0.0.0
   await app.listen(port, '0.0.0.0');
 
-  console.log(`Server running on port ${port}`);
+  console.log(`Server running on 0.0.0.0 : ${port}`);
 }
 
 bootstrap();
