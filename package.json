@@ -8,10 +8,10 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "start": "nest start --watch",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "typeorm:generate-migration": "npm run typeorm -- migration:generate ./src/migrations/InitialSchema -d ./src/config/data-source.ts",
     "typeorm:run-migrations": "npm run typeorm -- migration:run -d ./src/config/data-source.ts",
@@ -38,6 +38,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/serve-static": "^5.0.3",
+    "@nestjs/swagger": "^11.2.3",
     "@nestjs/terminus": "^11.0.0",
     "@nestjs/typeorm": "^11.0.0",
     "@sendgrid/mail": "^8.1.6",
@@ -60,6 +61,7 @@
     "resend": "^6.1.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.34.4",
+    "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.26",
     "uuid": "^13.0.0"
   },
@@ -77,6 +79,7 @@
     "@types/nodemailer": "^7.0.2",
     "@types/pdfkit": "^0.17.3",
     "@types/supertest": "^6.0.2",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
@@ -111,6 +114,6 @@
     "testEnvironment": "node"
   },
   "engines": {
-    "node":">=20.11.0"
+    "node": ">=20.11.0"
   }
 }

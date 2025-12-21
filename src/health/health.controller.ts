@@ -1,14 +1,16 @@
-import { Controller, Get, HttpCode } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 
 @Controller('health')
+@ApiTags('health')
 export class HealthController {
   @Get()
-  @HttpCode(200)
-  health() {
+  checkHealth() {
     return {
       status: 'ok',
-      uptime: process.uptime(),
       timestamp: new Date().toISOString(),
+      service: 'Clinic Management System',
+      uptime: process.uptime(),
     };
   }
 }
