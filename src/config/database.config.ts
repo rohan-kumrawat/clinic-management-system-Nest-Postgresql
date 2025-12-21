@@ -1,5 +1,3 @@
-
-// database.config.ts - IMPROVED VERSION
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
@@ -8,38 +6,46 @@ export default async function databaseConfig(
 ): Promise<TypeOrmModuleOptions> {
   const isProd = configService.get('NODE_ENV') === 'production';
   
-  // Railway me DATABASE_URL milti hai
-  const databaseUrl = configService.get<string>('DATABASE_URL');
+  // Get DATABASE_URL from Railway
+  let databaseUrl = configService.get<string>('DATABASE_URL');
   
-  // DATABASE_URL ko parse karke TypeORM ke format me convert karna
-  let sslConfig: any = false;
-  
+  // Railway PostgreSQL me SSL required hota hai
   if (isProd && databaseUrl) {
-    // Railway PostgreSQL always requires SSL in production
-    sslConfig = { 
-      rejectUnauthorized: false 
-    };
-    
-    // Database URL me ?ssl=true add karna agar nahi hai
-    if (!databaseUrl.includes('ssl=true') && !databaseUrl.includes('sslmode=')) {
-      console.log('⚠️ Adding SSL params to database URL');
+    try {
+      // Check if URL already has query parameters
+      const hasQueryParams = databaseUrl.includes('?');
+      
+      // Ensure SSL mode is set for Railway
+      if (!databaseUrl.includes('sslmode=')) {
+        databaseUrl += hasQueryParams ? '&sslmode=require' : '?sslmode=require';
+      }
+      
+      console.log('✅ Database URL configured for Railway');
+    } catch (error) {
+      console.error('Error configuring database URL:', error);
     }
   }
 
   return {
     type: 'postgres',
     url: databaseUrl,
-    ssl: sslConfig,
+    ssl: isProd ? { 
+      rejectUnauthorized: false 
+    } : false,
     autoLoadEntities: true,
-    synchronize: false, // Production me kabhi true mat rakhein
+    synchronize: false,
     logging: configService.get('DB_LOGGING') === 'true',
-    retryAttempts: 5,
-    retryDelay: 5000,
-    connectTimeoutMS: 15000,
+    
+    // Railway ke liye optimized connection settings
+    retryAttempts: 10, // Increase retry attempts
+    retryDelay: 3000, // 3 seconds between retries
+    connectTimeoutMS: 30000, // 30 seconds connection timeout
+    
+    // Connection pooling for Railway
     extra: {
-      // Connection pooling for better performance
       max: 20,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 30000, // 30 seconds
+      idleTimeoutMillis: 30000,
     },
   };
 }

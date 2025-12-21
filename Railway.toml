@@ -1,11 +1,17 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm run build"
+buildCommand = "npm install && npm run build"
 
 [deploy]
-startCommand = "npm run start:prod"
+startCommand = "node dist/main.js"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 120  # 120 seconds for initial startup
+port = 3000
 
 [build.environment]
 NODE_ENV = "production"
+
+[deploy.environment]
+NODE_ENV = "production"
+DB_SYNCHRONIZE = "false"
+DB_LOGGING = "false"
