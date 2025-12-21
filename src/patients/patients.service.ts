@@ -7,7 +7,7 @@ import { PatientStatus, PaymentStatus, Gender, PackageStatus } from 'src/common/
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Session } from '../sessions/entity/session.entity';
 import { Payment } from '../payments/entity/payment.entity';
 import { PackagesService } from 'src/packages/packages.service';
@@ -76,15 +76,14 @@ export class PatientsService {
     }
   }
 
-
   async findOne(id: number, userRole: UserRole | null = null): Promise<Patient> {
     try {
       let queryBuilder = this.patientsRepository
         .createQueryBuilder('patient')
         .leftJoinAndSelect('patient.created_by', 'createdBy')
         .leftJoinAndSelect('patient.updated_by', 'updatedBy')
-        .leftJoinAndSelect('patient.packages', 'packages')
-        .leftJoin('packages.assigned_doctor', 'packageDoctor')
+        .leftJoinAndSelect('patient.packages', 'patientPackages') // ✅ FIXED: alias changed
+        .leftJoin('patientPackages.assigned_doctor', 'packageDoctor') // ✅ FIXED: uses correct alias
         .addSelect(['packageDoctor.doctor_id', 'packageDoctor.name'])
         .where('patient.patient_id = :id', { id });
 
@@ -128,39 +127,39 @@ export class PatientsService {
             activePackage = pkg;
           }
         });
+      }
+
+      const remainingReleaseSessions = Math.max(totalReleasedSessions - totalUsedSessions, 0);
+
+      let paymentStatus = PaymentStatus.UNPAID;
+      if (paidAmount === 0) {
+        paymentStatus = PaymentStatus.UNPAID;
+      } else if (paidAmount < totalPackageAmount) {
+        paymentStatus = PaymentStatus.PARTIALLY_PAID;
+      } else {
+        paymentStatus = PaymentStatus.FULLY_PAID;
+      }
+
+      const currentDoctor = activePackage && (activePackage as any).assigned_doctor 
+        ? (activePackage as any).assigned_doctor
+        : null;
+
+      // Set virtual fields on the Patient entity
+      patient.attended_sessions_count = attendedSessionsCount;
+      patient.paid_amount = paidAmount;
+      patient.total_package_amount = totalPackageAmount;
+      patient.total_released_sessions = totalReleasedSessions;
+      patient.total_used_sessions = totalUsedSessions;
+      patient.remaining_released_sessions = remainingReleaseSessions;
+      patient.payment_status = paymentStatus;
+      patient.current_doctor = currentDoctor;
+      patient.active_package = activePackage;
+
+      return patient;
+    } catch (error) {
+      console.error('Error fetching patient:', error);
+      throw new Error('Failed to fetch patient');
     }
-
-    const remainingReleaseSessions = Math.max(totalReleasedSessions - totalUsedSessions, 0);
-
-    let paymentStatus = PaymentStatus.UNPAID;
-    if (paidAmount === 0) {
-      paymentStatus = PaymentStatus.UNPAID;
-    } else if (paidAmount < totalPackageAmount) {
-      paymentStatus = PaymentStatus.PARTIALLY_PAID;
-    } else {
-      paymentStatus = PaymentStatus.FULLY_PAID;
-    }
-
-    const currentDoctor = activePackage && (activePackage as any).assigned_doctor 
-      ? (activePackage as any).assigned_doctor
-      : null;
-
-    // Set virtual fields on the Patient entity
-    patient.attended_sessions_count = attendedSessionsCount;
-    patient.paid_amount = paidAmount;
-    patient.total_package_amount = totalPackageAmount;
-    patient.total_released_sessions = totalReleasedSessions;
-    patient.total_used_sessions = totalUsedSessions;
-    patient.remaining_released_sessions = remainingReleaseSessions;
-    patient.payment_status = paymentStatus;
-    patient.current_doctor = currentDoctor;
-    patient.active_package = activePackage;
-
-    return patient;
-  } catch (error) {
-    console.error('Error fetching patient:', error);
-    throw new Error('Failed to fetch patient');
-  }
   }
 
   private async updatePatientStatus(patientId: number): Promise<void> {
@@ -197,8 +196,6 @@ export class PatientsService {
     return await this.packagesService.closePackage(packageId, closePackageDto, userId);
   }
 
-  // Rest of the methods remain same (uploadPatientReports, removePatientReport, etc.)
-
   async uploadPatientReports(
     patientId: number, 
     files: Express.Multer.File[],
@@ -215,7 +212,7 @@ export class PatientsService {
     const uploadResults = await this.cloudinaryService.uploadMultipleFiles(files);
 
     const newReports = uploadResults.map((result, index) => ({
-      id: uuidv4(),
+      id: randomUUID(), // ✅ FIXED: crypto se
       url: result.url,
       public_id: result.public_id,
       filename: result.filename,
@@ -392,7 +389,7 @@ export class PatientsService {
         .createQueryBuilder('patient')
         .leftJoin('patient.created_by', 'createdBy')
         .addSelect(['createdBy.id', 'createdBy.name'])
-        .leftJoinAndSelect('patient.packages', 'packages')
+        .leftJoinAndSelect('patient.packages', 'patientPackages') // ✅ FIXED: alias changed
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions');
 
       if (userRole === UserRole.RECEPTIONIST) {
@@ -452,7 +449,7 @@ export class PatientsService {
         .createQueryBuilder('patient')
         .leftJoin('patient.created_by', 'createdBy')
         .addSelect(['createdBy.id', 'createdBy.name'])
-        .leftJoinAndSelect('patient.packages', 'packages')
+        .leftJoinAndSelect('patient.packages', 'patientPackages') // ✅ FIXED: alias changed
         .loadRelationCountAndMap('patient.attended_sessions_count', 'patient.sessions')
         .where('patient.status = :status', { status: PatientStatus.ACTIVE });
 
